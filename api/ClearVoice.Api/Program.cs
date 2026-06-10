@@ -8,6 +8,7 @@ using ClearVoice.Api.Services;
 using ClearVoice.Api.Services.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Serilog;
@@ -72,11 +73,12 @@ try
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuer           = true,
-                ValidateAudience         = true,
+                ValidIssuer              = keycloakOpts.Authority,
+                ValidateAudience         = false,
                 ValidateLifetime         = true,
                 ValidateIssuerSigningKey = true,
                 // Keycloak includes roles inside realm_access.roles — map them
-                RoleClaimType            = "realm_access.roles",
+                RoleClaimType            = ClaimTypes.Role,
                 NameClaimType            = "preferred_username",
             };
 
@@ -85,6 +87,63 @@ try
                 OnAuthenticationFailed = ctx =>
                 {
                     Log.Warning("JWT auth failed: {Error}", ctx.Exception.Message);
+                    return Task.CompletedTask;
+                },
+
+                // Keycloak emits realm roles inside a nested realm_access.roles
+                // JSON object. Flatten them into ClaimTypes.Role so that
+                // RequireRole() and [Authorize(Roles=...)] work correctly.
+                OnTokenValidated = ctx =>
+                {
+                    var identity = ctx.Principal?.Identity as System.Security.Claims.ClaimsIdentity;
+                    if (identity is null) return Task.CompletedTask;
+
+                    var realmAccess = identity.FindFirst("realm_access");
+                    if (realmAccess?.Value is { } json)
+                    {
+                        try
+                        {
+                            using var doc = System.Text.Json.JsonDocument.Parse(json);
+                            if (doc.RootElement.TryGetProperty("roles", out var roles))
+                            {
+                                foreach (var role in roles.EnumerateArray())
+                                {
+                                    var roleName = role.GetString();
+                                    if (!string.IsNullOrEmpty(roleName))
+                                        identity.AddClaim(new System.Security.Claims.Claim(
+                                            System.Security.Claims.ClaimTypes.Role, roleName));
+                                }
+                            }
+                        }
+                        catch { /* ignore malformed */ }
+                    }
+
+                    // Also map flat realm_access.roles claims if present
+                    foreach (var c in identity.FindAll("realm_access.roles").ToList())
+                    {
+                        // The value might be a JSON array string or a plain role name
+                        if (c.Value.StartsWith('['))
+                        {
+                            try
+                            {
+                                using var doc = System.Text.Json.JsonDocument.Parse(c.Value);
+                                foreach (var role in doc.RootElement.EnumerateArray())
+                                {
+                                    var roleName = role.GetString();
+                                    if (!string.IsNullOrEmpty(roleName))
+                                        identity.AddClaim(new System.Security.Claims.Claim(
+                                            System.Security.Claims.ClaimTypes.Role, roleName));
+                                }
+                            }
+                            catch { /* ignore */ }
+                        }
+                        else
+                        {
+                            identity.AddClaim(new System.Security.Claims.Claim(
+                                System.Security.Claims.ClaimTypes.Role, c.Value));
+                        }
+                    }
+
                     return Task.CompletedTask;
                 },
             };
@@ -191,7 +250,25 @@ try
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         if (app.Environment.IsDevelopment())
+        {
+            // If an older/incomplete local schema exists, EnsureCreated() will no-op.
+            // Recreate once when required tables are missing so local dev can proceed.
             await db.Database.EnsureCreatedAsync();
+
+            await using var conn = db.Database.GetDbConnection();
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "select to_regclass('\"AudioFiles\"') is not null";
+            var audioFilesExists = (bool?)await cmd.ExecuteScalarAsync() ?? false;
+            await conn.CloseAsync();
+
+            if (!audioFilesExists)
+            {
+                Log.Warning("Development schema incomplete; recreating local database schema.");
+                await db.Database.EnsureDeletedAsync();
+                await db.Database.EnsureCreatedAsync();
+            }
+        }
         else
             await db.Database.MigrateAsync();
     }
