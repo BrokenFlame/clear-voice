@@ -35,7 +35,7 @@ export class AuthService {
 
     try {
       await this.oauthService.tryLoginCodeFlow();
-      if (this.oauthService.hasValidAccessToken()) {
+      if (this.hasAnyValidToken()) {
         await this.loadUserProfile();
       }
     } catch (e) {
@@ -45,8 +45,15 @@ export class AuthService {
 
   async ensureUserLoaded(): Promise<void> {
     if (this._user()) return;
-    if (!this.oauthService.hasValidAccessToken()) return;
+    await this.oauthService.tryLoginCodeFlow();
+    if (!this.hasAnyValidToken()) return;
     await this.loadUserProfile();
+    if (this._user()) return;
+
+    const claims = this.getMergedClaims();
+    if (Object.keys(claims).length > 0) {
+      this.setUserFromClaims(claims);
+    }
   }
 
   login(): void {
@@ -60,6 +67,18 @@ export class AuthService {
 
   getAccessToken(): string {
     return this.oauthService.getAccessToken();
+  }
+
+  private hasAnyValidToken(): boolean {
+    return this.oauthService.hasValidAccessToken() || this.oauthService.hasValidIdToken();
+  }
+
+  private getMergedClaims(): Record<string, unknown> {
+    const idClaims = this.oauthService.getIdentityClaims() as Record<string, unknown> | null;
+    const idTokenClaims = this.decodeJwtPayload(this.oauthService.getIdToken());
+    const accessClaims = this.decodeJwtPayload(this.oauthService.getAccessToken());
+
+    return ({ ...(accessClaims ?? {}), ...(idTokenClaims ?? {}), ...(idClaims ?? {}) }) as Record<string, unknown>;
   }
 
   private decodeJwtPayload(token: string): Record<string, unknown> | null {
@@ -108,29 +127,38 @@ export class AuthService {
     return Array.from(roles);
   }
 
+  private asStringClaim(value: unknown): string | undefined {
+    if (typeof value === 'string' && value.trim().length > 0) return value;
+    if (Array.isArray(value)) {
+      const first = value.find((v) => typeof v === 'string' && v.trim().length > 0);
+      if (typeof first === 'string') return first;
+    }
+    return undefined;
+  }
+
+  private setUserFromClaims(claims: Record<string, unknown>): void {
+    const roles = this.extractRoles(claims);
+    const identityProvider = this.asStringClaim(claims['identity_provider'])
+      ?? (roles.includes('finance_staff') ? 'azure' : 'keycloak');
+
+    this._user.set({
+      sub: this.asStringClaim(claims['sub']) ?? 'unknown',
+      username: this.asStringClaim(claims['preferred_username']) ?? this.asStringClaim(claims['email']) ?? 'unknown',
+      email: this.asStringClaim(claims['email']),
+      fullName: this.asStringClaim(claims['name']),
+      merchantId: this.asStringClaim(claims['merchant_id'] ?? claims['merchantId']),
+      organisationName: this.asStringClaim(claims['organisation_name']),
+      roles,
+      identityProvider,
+    });
+  }
+
   private async loadUserProfile(): Promise<void> {
     try {
-      const idClaims = this.oauthService.getIdentityClaims() as Record<string, unknown> | null;
-      const accessClaims = this.decodeJwtPayload(this.oauthService.getAccessToken());
-      const claims = ({ ...(accessClaims ?? {}), ...(idClaims ?? {}) }) as Record<string, unknown>;
+      const claims = this.getMergedClaims();
       if (Object.keys(claims).length === 0) return;
 
-      const roles = this.extractRoles(claims);
-
-      // Detect IdP: azure-federated users won't have a merchant_id
-      const identityProvider = claims['identity_provider'] as string
-        ?? (roles.includes('finance_staff') ? 'azure' : 'keycloak');
-
-      this._user.set({
-        sub: claims['sub'] as string,
-        username: (claims['preferred_username'] as string) ?? '',
-        email: claims['email'] as string | undefined,
-        fullName: claims['name'] as string | undefined,
-        merchantId: claims['merchant_id'] as string | undefined,
-        organisationName: claims['organisation_name'] as string | undefined,
-        roles,
-        identityProvider,
-      });
+      this.setUserFromClaims(claims);
     } catch (e) {
       console.error('[AuthService] Failed to load user profile:', e);
     }

@@ -221,7 +221,9 @@ export class MerchantUploadComponent {
         },
         error: err => {
           item.status = 'error';
-          item.error = err?.error?.message ?? 'Upload failed';
+          item.error = typeof err?.error === 'string'
+            ? err.error
+            : (err?.error?.message ?? err?.message ?? 'Upload failed');
           this.queue.update(q => [...q]);
           completed++;
           if (completed === pending.length) this.isUploading.set(false);

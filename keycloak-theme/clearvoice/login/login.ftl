@@ -28,7 +28,7 @@
                 </div>
             </#if>
 
-            <form id="kc-form-login" onsubmit="login.disabled = true; return true;" action="${url.loginAction}" method="post">
+            <form id="kc-form-login" onsubmit="document.getElementById('kc-login').disabled = true; return true;" action="${url.loginAction}" method="post">
                 <div>
                     <label for="username">
                         <#if !realm.loginWithEmailAllowed>${msg("username")}<#elseif !realm.registrationEmailAsUsername>${msg("usernameOrEmail")}<#else>${msg("email")}</#if>

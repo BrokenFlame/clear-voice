@@ -6,7 +6,7 @@ export const environment = {
     clientId: 'clearvoice-ui',
     redirectUri: 'http://localhost:4200/auth/callback',
     postLogoutRedirectUri: 'http://localhost:4200',
-    scope: 'openid profile email offline_access',
+    scope: 'openid profile email',
     responseType: 'code',
     requireHttps: false,
     showDebugInformation: true,

@@ -149,6 +149,15 @@ public class S3Options
     public string? ServiceUrl { get; set; }
 
     /// <summary>
+    /// Explicit access key for local dev (MinIO). When set, takes priority over
+    /// the AWS credential chain (env vars / ~/.aws/credentials).
+    /// Do NOT set in production — use IRSA or env vars there.
+    /// </summary>
+    public string? AccessKeyId { get; set; }
+
+    /// <summary>Explicit secret key paired with AccessKeyId for local dev.</summary>
+    public string? SecretKey { get; set; }
+    /// <summary>
     /// Required by MinIO and other S3-compatible stores.
     /// Path-style: http://host/bucket/key (vs virtual-hosted: http://bucket.host/key).
     /// </summary>

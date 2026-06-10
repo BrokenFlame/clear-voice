@@ -26,6 +26,15 @@ export class AuthCallbackComponent implements OnInit {
       && user?.identityProvider === 'keycloak'
       && !this.auth.isFinanceStaff();
 
+    console.info('[AuthCallback] Resolved user', {
+      isLoggedIn: this.auth.isLoggedIn(),
+      isMerchant: this.auth.isMerchant(),
+      isFinanceStaff: this.auth.isFinanceStaff(),
+      identityProvider: user?.identityProvider,
+      merchantId: user?.merchantId,
+      roles: user?.roles ?? [],
+    });
+
     // OAuthService has already consumed the code from the URL in app initializer.
     // We just need to route based on the resolved role.
     if (this.auth.isMerchant() || keycloakMerchantFallback) {

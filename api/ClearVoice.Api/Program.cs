@@ -40,6 +40,11 @@ try
     var corsOrigins  = builder.Configuration
         .GetSection("Cors:AllowedOrigins").Get<string[]>()
         ?? ["http://localhost:4200"];
+    var normalizedCorsOrigins = corsOrigins
+        .Where(o => !string.IsNullOrWhiteSpace(o))
+        .Select(o => o.Trim().TrimEnd('/'))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
 
     builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Storage"));
     builder.Services.Configure<UploadOptions>(builder.Configuration.GetSection("Upload"));
@@ -48,7 +53,8 @@ try
     // ── CORS ─────────────────────────────────────────────────────────────────
     builder.Services.AddCors(opt =>
         opt.AddDefaultPolicy(policy =>
-            policy.WithOrigins(corsOrigins)
+            policy.SetIsOriginAllowed(origin =>
+                    normalizedCorsOrigins.Contains(origin.TrimEnd('/'), StringComparer.OrdinalIgnoreCase))
                   .AllowAnyHeader()
                   .AllowAnyMethod()
         )
@@ -178,7 +184,10 @@ try
     }
 
     app.UseSerilogRequestLogging();
-    app.UseCors();
+    app.UseCors(policy =>
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod());
 
     if (app.Environment.IsDevelopment())
     {
