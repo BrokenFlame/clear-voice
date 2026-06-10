@@ -93,7 +93,7 @@
         {
           "name": "realm_roles",
           "protocol": "openid-connect",
-          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "protocolMapper": "oidc-realm-role-mapper",
           "consentRequired": false,
           "config": {
             "multivalued": "true",
