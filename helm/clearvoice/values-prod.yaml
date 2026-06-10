@@ -1,0 +1,172 @@
+# ── ClearVoice Production Values Override ──────────────────────────────────────
+# Use with: helm install clearvoice ./helm/clearvoice -f values-prod.yaml
+#
+# This file overrides values.yaml with production-specific settings
+
+global:
+  environment: production
+  imageRegistry: 123456789012.dkr.ecr.eu-west-2.amazonaws.com
+
+# ── API Deployment ────────────────────────────────────────────────────────────
+api:
+  replicaCount: 3
+  
+  resources:
+    requests:
+      cpu: 750m
+      memory: 768Mi
+    limits:
+      cpu: 1500m
+      memory: 1536Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 60
+    targetMemoryUtilizationPercentage: 70
+  
+  env:
+    ASPNETCORE_ENVIRONMENT: Production
+    Keycloak__RequireHttpsMetadata: "true"
+    Storage__Provider: S3
+    Storage__S3__UseIRSA: "true"
+    Logging__LogLevel__Default: Information
+    Logging__LogLevel__Microsoft: Warning
+
+# ── UI Deployment ─────────────────────────────────────────────────────────────
+ui:
+  replicaCount: 3
+  
+  resources:
+    requests:
+      cpu: 150m
+      memory: 192Mi
+    limits:
+      cpu: 300m
+      memory: 384Mi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+# ── PostgreSQL (AWS RDS) ──────────────────────────────────────────────────────
+postgres:
+  enabled: false  # Use managed RDS
+  
+  host: clearvoice-prod.c9akciq32.eu-west-2.rds.amazonaws.com
+  port: 5432
+  database: clearvoice_prod
+  username: postgres
+
+# ── S3 Storage ────────────────────────────────────────────────────────────────
+s3:
+  enabled: true
+  bucketName: clearvoice-prod-audio
+  region: eu-west-2
+  useIRSA: true
+  iamRoleArn: "arn:aws:iam::123456789012:role/clearvoice-api-s3-role"
+
+# ── Ingress (ALB) ─────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: alb
+  
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:eu-west-2:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/wafv2-acl-arn: "arn:aws:wafv2:eu-west-2:123456789012:regional/webacl/clearvoice-prod/a1b2c3d4-e5f6"
+  
+  hosts:
+    - host: clearvoice.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: api
+        - path: /
+          pathType: Prefix
+          backend: ui
+
+# ── Pod Disruption Budget ─────────────────────────────────────────────────────
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# ── Monitoring ────────────────────────────────────────────────────────────────
+monitoring:
+  cloudwatch:
+    enabled: true
+    namespace: /aws/eks/clearvoice-prod
+    logRetentionDays: 30
+  
+  prometheus:
+    enabled: true
+    scrape_interval: 30s
+  
+  logging:
+    driver: awslogs
+    options:
+      awslogs-group: /aws/eks/clearvoice/prod
+      awslogs-region: eu-west-2
+      awslogs-stream-prefix: pod
+
+# ── Security ──────────────────────────────────────────────────────────────────
+security:
+  podSecurityPolicy: restricted
+  
+  rbac:
+    create: true
+  
+  networkPolicy:
+    enabled: true
+  
+  secrets:
+    encryption: true
+    kmsKeyId: "arn:aws:kms:eu-west-2:123456789012:key/12345678-1234-1234-1234-123456789012"
+  
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    capabilities:
+      drop:
+        - ALL
+  
+  podSecurityContext:
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+
+# ── Backup & DR ───────────────────────────────────────────────────────────────
+backup:
+  rds:
+    backupRetentionPeriod: 30
+    multiAZ: true
+    storageEncryption: true
+    kmsKeyId: "arn:aws:kms:eu-west-2:123456789012:key/12345678-1234-1234-1234-123456789012"
+  
+  s3:
+    versioning: true
+    lifecycle:
+      - id: archive-old-files
+        filter:
+          prefix: audio/
+        transitions:
+          - daysAfterInitiation: 90
+            storageClass: GLACIER
+      - id: delete-old-versions
+        filter:
+          prefix: audio/
+        noncurrentVersionExpiration:
+          noncurrentDays: 365
+  
+  crossRegionReplication:
+    enabled: true
+    destinationRegion: eu-west-1

@@ -1,57 +1,86 @@
-# ── ClearVoice Helm values ────────────────────────────────────────────────────
-# Override with: helm upgrade --install clearvoice ./helm/clearvoice -f my-values.yaml
+# ── ClearVoice Helm Chart Values ──────────────────────────────────────────────
+# Production deployment of ClearVoice Finance Portal on AWS EKS
+#
+# Deployment:
+#   helm install clearvoice ./helm/clearvoice \
+#     --namespace clearvoice --create-namespace \
+#     -f helm/clearvoice/values-prod.yaml
+#
+# Override specific values:
+#   helm install clearvoice ./helm/clearvoice \
+#     --set api.image.tag=2.0.0 \
+#     --set ingress.hosts[0].host=my-clearvoice.example.com
 
 global:
+  # AWS ECR registry for container images
+  # Format: ACCOUNT_ID.dkr.ecr.REGION.amazonaws.com
   imageRegistry: ""   # e.g. 123456789012.dkr.ecr.eu-west-2.amazonaws.com
+  
+  # Environment: production, staging, development
+  environment: production
 
-# ── API ───────────────────────────────────────────────────────────────────────
+# ── .NET API (ASP.NET Core, runs on EKS) ──────────────────────────────────────
 api:
   image:
+    # Pull from AWS ECR or Docker Hub
     repository: clearvoice/api
     tag: "1.0.0"
     pullPolicy: IfNotPresent
 
+  # Replicas for high availability
   replicaCount: 2
 
   service:
     type: ClusterIP
-    port: 80
-    targetPort: 8080
+    port: 80           # Kubernetes service port (ingress → service)
+    targetPort: 5000   # Container port (app runs on 5000)
 
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
+      cpu: 500m        # Minimum guaranteed CPU
+      memory: 512Mi    # Minimum guaranteed memory
     limits:
-      cpu: 500m
-      memory: 512Mi
+      cpu: 1000m       # Maximum allowed CPU
+      memory: 1024Mi   # Maximum allowed memory
 
-  # IRSA — set to the IAM Role ARN that grants s3:GetObject / s3:PutObject / s3:DeleteObject
+  # IAM Role for Service Account (IRSA)
+  # Grants EKS pod access to S3 and RDS without static credentials
   serviceAccount:
     create: true
+    name: clearvoice-api
     annotations:
+      # ARN of the IAM role that allows S3 access
       eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT_ID:role/clearvoice-api-s3-role"
 
+  # Horizontal Pod Autoscaling
   autoscaling:
     enabled: true
     minReplicas: 2
     maxReplicas: 6
     targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
 
+  # Environment configuration
   env:
     ASPNETCORE_ENVIRONMENT: Production
     Keycloak__RequireHttpsMetadata: "true"
     Storage__Provider: S3
     Storage__S3__UseIRSA: "true"
+    Logging__LogLevel__Default: Information
+    Logging__LogLevel__Microsoft: Warning
 
-  # These come from Kubernetes Secrets — do not put real values here
+  # Sensitive configuration from Kubernetes Secrets
+  # These are populated by External Secrets Operator or manual creation
   secretEnv:
-    - name: ConnectionStrings__Postgres
+    - name: ConnectionStrings__DefaultConnection
       secretName: clearvoice-secrets
       secretKey: postgres-connection-string
     - name: Keycloak__Authority
       secretName: clearvoice-secrets
       secretKey: keycloak-authority
+    - name: Keycloak__ClientId
+      secretName: clearvoice-secrets
+      secretKey: keycloak-client-id
     - name: Keycloak__Audience
       secretName: clearvoice-secrets
       secretKey: keycloak-audience
@@ -62,23 +91,43 @@ api:
       secretName: clearvoice-secrets
       secretKey: s3-region
 
+  # Health checks
   livenessProbe:
     httpGet:
       path: /health
-      port: 8080
+      port: 5000
     initialDelaySeconds: 15
     periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 3
 
   readinessProbe:
     httpGet:
       path: /health
-      port: 8080
+      port: 5000
     initialDelaySeconds: 10
     periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
 
-# ── UI ────────────────────────────────────────────────────────────────────────
+  # Pod affinity for distribution across nodes
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                    - api
+            topologyKey: kubernetes.io/hostname
+
+# ── Angular UI (runs on EKS with nginx)  ──────────────────────────────────────
 ui:
   image:
+    # Pre-built Angular production build + nginx
     repository: clearvoice/ui
     tag: "1.0.0"
     pullPolicy: IfNotPresent
@@ -88,45 +137,125 @@ ui:
   service:
     type: ClusterIP
     port: 80
-    targetPort: 8080
+    targetPort: 80      # nginx port inside container
 
   resources:
     requests:
-      cpu: 50m
-      memory: 64Mi
+      cpu: 100m
+      memory: 128Mi
     limits:
       cpu: 200m
-      memory: 128Mi
+      memory: 256Mi
 
   serviceAccount:
     create: true
-    annotations: {}   # no IRSA needed for the static UI
+    name: clearvoice-ui
+    annotations: {}     # No IRSA needed; static UI, no AWS access
+
+  # Horizontal Pod Autoscaling
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+
+  # Environment variables passed to nginx
+  env:
+    NG_API_URL: https://api.clearvoice.example.com
+    NG_KEYCLOAK_URL: https://keycloak.example.com/realms/clearvoice
+    NG_CLIENT_ID: clearvoice-ui
 
   livenessProbe:
     httpGet:
-      path: /nginx-health
-      port: 8080
+      path: /
+      port: 80
     initialDelaySeconds: 5
     periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
 
   readinessProbe:
     httpGet:
-      path: /nginx-health
-      port: 8080
+      path: /
+      port: 80
     initialDelaySeconds: 5
     periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
 
-# ── Ingress ───────────────────────────────────────────────────────────────────
+  # Pod affinity for distribution
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                    - ui
+            topologyKey: kubernetes.io/hostname
+
+# ── Keycloak (OIDC Provider) ──────────────────────────────────────────────────
+# Can run in EKS or use AWS Cognito as alternative
+keycloak:
+  enabled: false        # Set true to deploy Keycloak in-cluster, or use AWS Cognito
+  
+  # If using AWS Cognito instead:
+  cognito:
+    enabled: true
+    userPoolId: eu-west-2_AbCdEfGhI
+    clientId: clearvoice-ui
+    domain: clearvoice.auth.eu-west-2.amazoncognito.com
+  
+  # If deploying Keycloak in-cluster:
+  image:
+    repository: keycloak/keycloak
+    tag: "24.0"
+  
+  replicaCount: 1  # Can scale to 2+ for HA
+  
+  # Connect to RDS PostgreSQL
+  database:
+    vendor: postgresql
+    host: clearvoice-prod.c9akciq32.eu-west-2.rds.amazonaws.com
+    port: 5432
+    name: keycloak_prod
+    username: keycloak    # Stored in secret
+    password: ""          # Stored in secret
+  
+  # Admin credentials (stored in secret)
+  admin:
+    username: admin
+    password: ""          # Stored in secret
+
+# ── AWS Application Load Balancer (ALB) Ingress ────────────────────────────────
+# Requires: AWS Load Balancer Controller installed in cluster
 ingress:
   enabled: true
-  className: alb         # AWS Load Balancer Controller
+  className: alb
+  
   annotations:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
+    
+    # HTTPS termination
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
     alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:eu-west-2:ACCOUNT_ID:certificate/CERT_ID"
     alb.ingress.kubernetes.io/ssl-redirect: "443"
+    
+    # Security headers
+    alb.ingress.kubernetes.io/load-balancer-attributes: >
+      idle_timeout.connection.draining.enabled=true,
+      idle_timeout.connection.draining.timeout=30,
+      routing.http2.enabled=true
+    
+    # WAF association (optional)
+    alb.ingress.kubernetes.io/wafv2-acl-arn: "arn:aws:wafv2:eu-west-2:ACCOUNT_ID:regional/webacl/clearvoice-prod/a1b2c3d4-e5f6"
+  
+  # Hosts and paths
   hosts:
     - host: clearvoice.example.com
       paths:
@@ -136,14 +265,199 @@ ingress:
         - path: /
           pathType: Prefix
           backend: ui
+  
+  # TLS/SSL configuration
+  tls:
+    enabled: true
+    secretName: clearvoice-tls
+    issuer: letsencrypt-prod  # For cert-manager (optional)
 
-# ── PostgreSQL (sub-chart placeholder) ────────────────────────────────────────
-# In production use an RDS instance; connection string goes in clearvoice-secrets.
-# Set postgresql.enabled: true only for dev/staging cluster installs.
-postgresql:
-  enabled: false
+# ── Network Policy ────────────────────────────────────────────────────────────
+networkPolicy:
+  enabled: true
+  
+  # Restrict ingress to API pods
+  api:
+    ingress:
+      - from:
+          - namespaceSelector:
+              matchLabels:
+                name: clearvoice
+          - namespaceSelector:
+              matchLabels:
+                name: ingress-nginx
+        ports:
+          - protocol: TCP
+            port: 5000
+  
+  # Restrict egress (allow DNS, RDS, S3, Keycloak)
+  egressRules:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53  # DNS
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443  # HTTPS to AWS services
+        - protocol: TCP
+          port: 5432  # RDS PostgreSQL
 
-# ── Pod disruption budget ─────────────────────────────────────────────────────
+# ── PostgreSQL (AWS RDS) ──────────────────────────────────────────────────────
+# Production uses AWS RDS PostgreSQL. Connection string stored in Kubernetes Secret.
+# NOTE: Do not put real credentials in this file; use AWS Secrets Manager + External Secrets Operator
+postgres:
+  enabled: false         # Use managed RDS, not in-cluster PostgreSQL
+  
+  # Connection details (retrieved from AWS Secrets Manager)
+  host: clearvoice-prod.c9akciq32.eu-west-2.rds.amazonaws.com
+  port: 5432
+  database: clearvoice_prod
+  username: postgres     # Stored in secret
+  password: ""           # Stored in secret (leave empty; populated by ExternalSecret)
+  
+  # RDS configuration recommendations:
+  # - Multi-AZ: true (automatic failover)
+  # - Backup retention: 30 days
+  # - Storage: gp3, encrypted at rest (KMS)
+  # - Performance Insights: enabled
+  # - Enhanced monitoring: enabled (CloudWatch)
+  # - Backup window: 03:00-04:00 UTC
+  # - Maintenance window: sun:04:00-05:00 UTC
+
+# ── S3 Storage (AWS S3) ────────────────────────────────────────────────────────
+# Production uses AWS S3 for audio file storage.
+# API pods access S3 via IRSA (IAM Roles for Service Accounts).
+s3:
+  enabled: true
+  
+  # Bucket name and region
+  bucketName: clearvoice-prod-audio
+  region: eu-west-2
+  
+  # Permissions via IRSA — no static credentials needed
+  useIRSA: true
+  iamRoleArn: "arn:aws:iam::ACCOUNT_ID:role/clearvoice-api-s3-role"
+  
+  # S3 configuration recommendations:
+  # - Versioning: enabled (audit trail)
+  # - Server-side encryption: KMS
+  # - Block public access: all enabled
+  # - Lifecycle policies:
+  #   * Transition to Glacier after 90 days
+  #   * Expire after 7 years (compliance)
+  # - Cross-region replication: optional (for DR)
+  # - Access logging: to separate audit bucket
+  
+  # CloudFront distribution for cached downloads (optional)
+  cloudfront:
+    enabled: false
+    distributionId: ""  # e.g. E1A2B3C4D5E6F7G8H9
+    domainName: ""      # e.g. d111111abcdef8.cloudfront.net
+
+# ── Pod Disruption Budget ─────────────────────────────────────────────────────
 podDisruptionBudget:
   enabled: true
-  minAvailable: 1
+  minAvailable: 1   # Ensure at least 1 pod remains during node drains
+
+# ── Monitoring & Logging ──────────────────────────────────────────────────────
+monitoring:
+  # CloudWatch Container Insights
+  cloudwatch:
+    enabled: true
+    namespace: /aws/eks/clearvoice-prod
+    logRetentionDays: 30
+  
+  # Prometheus metrics (optional)
+  prometheus:
+    enabled: false
+    scrape_interval: 30s
+  
+  # ELK Stack or CloudWatch Logs Insights
+  logging:
+    driver: awslogs
+    options:
+      awslogs-group: /aws/eks/clearvoice/api
+      awslogs-region: eu-west-2
+      awslogs-stream-prefix: pod
+
+# ── Security ──────────────────────────────────────────────────────────────────
+security:
+  # Pod Security Standards
+  podSecurityPolicy: restricted
+  
+  # RBAC
+  rbac:
+    create: true
+  
+  # Network policies
+  networkPolicy:
+    enabled: true
+  
+  # Secrets encryption at rest
+  secrets:
+    encryption: true
+    kmsKeyId: "arn:aws:kms:eu-west-2:ACCOUNT_ID:key/KEY_ID"
+  
+  # Container security context
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1000
+    capabilities:
+      drop:
+        - ALL
+  
+  # Pod security context
+  podSecurityContext:
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+
+# ── Backup & Disaster Recovery ────────────────────────────────────────────────
+backup:
+  # RDS automated backups (AWS-managed)
+  rds:
+    backupRetentionPeriod: 30  # days
+    multiAZ: true              # Automatic failover
+    storageEncryption: true
+    kmsKeyId: "arn:aws:kms:eu-west-2:ACCOUNT_ID:key/KEY_ID"
+  
+  # S3 versioning and lifecycle
+  s3:
+    versioning: true
+    lifecycle:
+      - id: archive-old-files
+        filter:
+          prefix: audio/
+        transitions:
+          - daysAfterInitiation: 90
+            storageClass: GLACIER
+      - id: delete-old-versions
+        filter:
+          prefix: audio/
+        noncurrentVersionExpiration:
+          noncurrentDays: 365
+  
+  # Cross-region replication (optional)
+  crossRegionReplication:
+    enabled: false
+    destinationRegion: eu-west-1
+
+# ── Cost Optimization ─────────────────────────────────────────────────────────
+cost:
+  # Compute Savings Plans / Reserved Instances
+  ec2:
+    spotInstances: false  # Set true for non-critical workloads
+  
+  # S3 Intelligent-Tiering
+  s3:
+    intelligentTiering: true
+  
+  # RDS Reserved Instances
+  rds:
+    reservedInstanceTerm: "1-year"
