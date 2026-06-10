@@ -7,6 +7,42 @@ global:
   environment: production
   imageRegistry: 123456789012.dkr.ecr.eu-west-2.amazonaws.com
 
+# ── External Secrets (production) ───────────────────────────────────────────
+# Requires External Secrets Operator installed in the cluster and a
+# ClusterSecretStore named aws-secretsmanager.
+externalSecrets:
+  enabled: true
+  targetSecretName: clearvoice-secrets
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: aws-secretsmanager
+  data:
+    - secretKey: postgres-connection-string
+      remoteRef:
+        key: /clearvoice/prod/postgres
+        property: connectionString
+    - secretKey: keycloak-authority
+      remoteRef:
+        key: /clearvoice/prod/keycloak
+        property: authority
+    - secretKey: keycloak-client-id
+      remoteRef:
+        key: /clearvoice/prod/keycloak
+        property: clientId
+    - secretKey: keycloak-audience
+      remoteRef:
+        key: /clearvoice/prod/keycloak
+        property: audience
+    - secretKey: s3-bucket-name
+      remoteRef:
+        key: /clearvoice/prod/s3
+        property: bucketName
+    - secretKey: s3-region
+      remoteRef:
+        key: /clearvoice/prod/s3
+        property: region
+
 # ── API Deployment ────────────────────────────────────────────────────────────
 api:
   replicaCount: 3

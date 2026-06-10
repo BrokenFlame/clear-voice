@@ -19,6 +19,55 @@ global:
   # Environment: production, staging, development
   environment: production
 
+# ── External Secrets (AWS Secrets Manager -> Kubernetes Secret) ─────────────
+# In production, enable this to sync secrets from AWS Secrets Manager into a
+# standard Kubernetes Secret consumed by the API via secretKeyRef.
+externalSecrets:
+  enabled: false
+
+  # Name of the resulting Kubernetes Secret consumed by api.secretEnv.
+  targetSecretName: clearvoice-secrets
+
+  # How frequently External Secrets Operator refreshes values from AWS.
+  refreshInterval: 1h
+
+  # Reference to a pre-created SecretStore or ClusterSecretStore.
+  # Example with AWS Secrets Manager:
+  #   kind: ClusterSecretStore
+  #   name: aws-secretsmanager
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: aws-secretsmanager
+
+  # Map K8s Secret keys -> AWS Secrets Manager secrets.
+  # Each item creates one key in targetSecretName.
+  # If your AWS secret is JSON, set property to extract a field.
+  data:
+    - secretKey: postgres-connection-string
+      remoteRef:
+        key: /clearvoice/prod/postgres
+        property: connectionString
+    - secretKey: keycloak-authority
+      remoteRef:
+        key: /clearvoice/prod/keycloak
+        property: authority
+    - secretKey: keycloak-client-id
+      remoteRef:
+        key: /clearvoice/prod/keycloak
+        property: clientId
+    - secretKey: keycloak-audience
+      remoteRef:
+        key: /clearvoice/prod/keycloak
+        property: audience
+    - secretKey: s3-bucket-name
+      remoteRef:
+        key: /clearvoice/prod/s3
+        property: bucketName
+    - secretKey: s3-region
+      remoteRef:
+        key: /clearvoice/prod/s3
+        property: region
+
 # ── .NET API (ASP.NET Core, runs on EKS) ──────────────────────────────────────
 api:
   image:

@@ -142,38 +142,56 @@ The `docker-compose.yml` defines:
   - **IAM Roles** for EKS pods (S3 access, RDS security group)
   - **kubectl** configured to access the cluster
 - **Helm 3+**
+- **External Secrets Operator** installed in the cluster
+
+### External Secrets (AWS Secrets Manager)
+
+Production secret flow:
+
+1. Store application secrets in **AWS Secrets Manager**.
+2. External Secrets Operator syncs those values into a standard Kubernetes Secret (`clearvoice-secrets`).
+3. The .NET API consumes that Kubernetes Secret using existing `secretKeyRef` mappings.
+
+Frontend note:
+
+- The Angular UI should only use public runtime values (API URL, Keycloak realm URL, public client ID).
+- Do not store browser-visible configuration in Secrets Manager as "secrets".
 
 ### Deploy with Helm
 
-1. **Update configuration values** in `helm/clearvoice/values.yaml`:
+1. **Configure External Secrets in production values** (`helm/clearvoice/values-prod.yaml`):
    ```yaml
-   # Database
-   postgres:
-     host: your-rds-endpoint.rds.amazonaws.com
-     port: 5432
-     database: clearvoice_prod
-     username: postgres  # Use AWS Secrets Manager in production
-     password: <RDS_PASSWORD>  # Use AWS Secrets Manager in production
-
-   # Storage
-   s3:
-     bucket: my-clearvoice-bucket
-     region: us-east-1
-
-   # Keycloak
-   keycloak:
-     realmUrl: https://keycloak.example.com
-     clientId: clearvoice-ui
-     clientSecret: <KEYCLOAK_SECRET>
-
-   # Ingress
-   ingress:
+   externalSecrets:
      enabled: true
-     hosts:
-       - clearvoice.example.com
-     tls:
-       enabled: true
-       secretName: clearvoice-tls
+     targetSecretName: clearvoice-secrets
+     secretStoreRef:
+       kind: ClusterSecretStore
+       name: aws-secretsmanager
+     data:
+       - secretKey: postgres-connection-string
+         remoteRef:
+           key: /clearvoice/prod/postgres
+           property: connectionString
+       - secretKey: keycloak-authority
+         remoteRef:
+           key: /clearvoice/prod/keycloak
+           property: authority
+       - secretKey: keycloak-client-id
+         remoteRef:
+           key: /clearvoice/prod/keycloak
+           property: clientId
+       - secretKey: keycloak-audience
+         remoteRef:
+           key: /clearvoice/prod/keycloak
+           property: audience
+       - secretKey: s3-bucket-name
+         remoteRef:
+           key: /clearvoice/prod/s3
+           property: bucketName
+       - secretKey: s3-region
+         remoteRef:
+           key: /clearvoice/prod/s3
+           property: region
    ```
 
 2. **Install the Helm chart**:
@@ -206,11 +224,11 @@ helm/clearvoice/
 └── templates/
     ├── api-deployment.yaml       # .NET API deployment
     ├── ui-deployment.yaml        # Angular UI deployment
-    ├── keycloak-statefulset.yaml # Keycloak (optional; can use AWS Cognito)
+  ├── external-secret.yaml      # ExternalSecret for AWS Secrets Manager sync
     ├── services.yaml             # Service definitions
     ├── ingress.yaml              # Ingress for UI & API
     ├── configmap.yaml            # Application config
-    ├── secret.yaml               # Sensitive data (RDS, S3 credentials)
+  ├── secret.yaml               # Static K8s Secret fallback (non-ExternalSecrets mode)
     ├── hpa.yaml                  # Horizontal Pod Autoscaler
     ├── pdb.yaml                  # Pod Disruption Budget
     └── _helpers.tpl              # Helper templates
@@ -237,12 +255,12 @@ NG_AUTH_URL: https://keycloak.example.com/realms/clearvoice
 NG_CLIENT_ID: clearvoice-ui
 ```
 
-#### Secrets (Helm Secret)
+#### Secrets (External Secrets -> Kubernetes Secret)
 
-- RDS password
-- S3 access keys (or use IAM roles for EKS)
-- Keycloak client secret
-- TLS certificates
+- Store backend secrets in AWS Secrets Manager.
+- External Secrets Operator syncs values into `clearvoice-secrets`.
+- API pods read values through `api.secretEnv` using standard `secretKeyRef`.
+- UI configuration remains public and is delivered via environment/config maps.
 
 ### Scaling & High Availability
 
