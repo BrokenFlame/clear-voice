@@ -124,8 +124,16 @@ try
             config.SignatureVersion = "4";
         }
 
-        // For MinIO / explicit credentials: use the credentials from env or config.
-        // For IRSA on EKS: FallbackCredentialsFactory handles the projected token automatically.
+        // Explicit credentials take priority (local dev / MinIO via appsettings).
+        // If not set, the SDK falls through to: env vars → ~/.aws → IRSA (EKS).
+        if (!string.IsNullOrEmpty(storageOpts.S3.AccessKeyId) &&
+            !string.IsNullOrEmpty(storageOpts.S3.SecretKey))
+        {
+            var credentials = new Amazon.Runtime.BasicAWSCredentials(
+                storageOpts.S3.AccessKeyId, storageOpts.S3.SecretKey);
+            return new AmazonS3Client(credentials, config);
+        }
+
         return new AmazonS3Client(config);
     });
 
@@ -175,12 +183,17 @@ try
     var app = builder.Build();
     // ────────────────────────────────────────────────────────────────────────
 
-    // ── Auto-migrate on startup (dev only; use proper migration in prod) ─────
-    if (app.Environment.IsDevelopment())
+    // ── Create / migrate database on startup ─────────────────────────────────
+    // Development: EnsureCreatedAsync creates the schema directly from the model
+    //   — no migration files needed to get running locally.
+    // Production: run migrations as a pre-deploy Job (see RUNBOOK Part 8).
+    using (var scope = app.Services.CreateScope())
     {
-        using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.MigrateAsync();
+        if (app.Environment.IsDevelopment())
+            await db.Database.EnsureCreatedAsync();
+        else
+            await db.Database.MigrateAsync();
     }
 
     app.UseSerilogRequestLogging();
