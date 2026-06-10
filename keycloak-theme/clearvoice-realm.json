@@ -136,7 +136,7 @@
   "identityProviders": [
     {
       "alias": "azure",
-      "displayName": "Azure Entra",
+      "displayName": "Azure Entra ID",
       "providerId": "oidc",
       "enabled": true,
       "updateProfileFirstLoginMode": "on",
