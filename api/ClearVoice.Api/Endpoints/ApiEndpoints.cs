@@ -121,8 +121,15 @@ public static class ApiEndpoints
             if (file.Length > uploadOpts.MaxFileSizeBytes)
                 return Results.BadRequest($"File exceeds maximum size of 250 MB.");
 
+            // Sanitize filename: strip directory components, then remove any character
+            // that is not alphanumeric, dot, hyphen, or underscore.
+            var rawFilename    = Path.GetFileName(file.FileName);   // removes path traversal (e.g. ../../etc/passwd)
+            var sanitizedName  = System.Text.RegularExpressions.Regex.Replace(rawFilename, @"[^\w.\-]", "_");
+            if (string.IsNullOrWhiteSpace(sanitizedName))
+                return Results.BadRequest("Invalid filename.");
+
             // Validate extension
-            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+            var ext = Path.GetExtension(sanitizedName).ToLowerInvariant();
             if (!uploadOpts.AllowedExtensions.Contains(ext))
                 return Results.BadRequest($"File type '{ext}' is not permitted.");
 
@@ -134,7 +141,7 @@ public static class ApiEndpoints
 
             await using var stream = file.OpenReadStream();
             var storageKey = await storage.UploadAsync(
-                merchantId, fileId.ToString(), file.FileName,
+                merchantId, fileId.ToString(), sanitizedName,
                 stream, file.ContentType);
 
             var record = new AudioFile
@@ -143,7 +150,7 @@ public static class ApiEndpoints
                 MerchantId          = merchantId,
                 UploadedByUserId    = u.UserId(),
                 UploadedByUsername  = u.Username(),
-                OriginalFilename    = file.FileName,
+                OriginalFilename    = sanitizedName,
                 StorageKey          = storageKey,
                 SizeBytes           = file.Length,
                 ContentType         = file.ContentType,
@@ -158,7 +165,7 @@ public static class ApiEndpoints
                 u.UserId(), u.Username(),
                 merchantId: merchantId,
                 fileId: fileId.ToString(),
-                filename: file.FileName,
+                filename: sanitizedName,
                 ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
                 detail: $"{file.Length} bytes");
 
