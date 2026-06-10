@@ -38,7 +38,7 @@ services:
 
   # ── Keycloak ────────────────────────────────────────────────────────────────
   keycloak:
-    image: quay.io/keycloak/keycloak:24.0
+    image: keycloak/keycloak:24.0
     platform: linux/amd64
     command: start-dev --import-realm
     environment:
