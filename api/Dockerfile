@@ -2,6 +2,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
+# Trust corporate MITM CA used in enterprise networks (e.g. Zscaler)
+COPY certs/zscaler-root-ca.crt /usr/local/share/ca-certificates/zscaler-root-ca.crt
+RUN update-ca-certificates
+
 COPY ClearVoice.Api/ClearVoice.Api.csproj ./ClearVoice.Api/
 RUN dotnet restore ./ClearVoice.Api/ClearVoice.Api.csproj
 
