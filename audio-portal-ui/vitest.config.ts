@@ -5,8 +5,8 @@ export default defineConfig({
     // Use jsdom to simulate the browser DOM in unit tests
     environment: 'jsdom',
 
-    // Load Angular's zone.js before every test file
-    setupFiles: ['zone.js/testing'],
+    // zone.js → zone.js/testing → Angular TestBed initialisation
+    setupFiles: ['zone.js', 'zone.js/testing', './src/test-setup.ts'],
 
     // Glob patterns for test files
     include: ['src/**/*.spec.ts'],
