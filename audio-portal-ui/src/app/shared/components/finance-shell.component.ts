@@ -1,14 +1,15 @@
 import { Component, inject } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { AuthService } from '../../core/auth/auth.service';
 
 @Component({
   selector: 'cv-finance-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatIconModule],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MatIconModule, MatSnackBarModule],
   template: `
-    <div class="cv-app">
+    <div class="cv-app" (click.capture)="guardInteraction($event)">
       <nav class="cv-topbar">
         <div class="cv-logo">
           <div class="cv-logo__mark"><mat-icon>music_note</mat-icon></div>
@@ -49,6 +50,7 @@ import { AuthService } from '../../core/auth/auth.service';
 })
 export class FinanceShellComponent {
   private auth = inject(AuthService);
+  private snack = inject(MatSnackBar);
   user = this.auth.user;
 
   initials(): string {
@@ -60,5 +62,14 @@ export class FinanceShellComponent {
 
   async logout(): Promise<void> {
     await this.auth.logout();
+  }
+
+  guardInteraction(event: Event): void {
+    if (this.auth.hasActiveSession()) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.snack.dismiss();
+    void this.auth.redirectToLoginWithPrompt();
   }
 }

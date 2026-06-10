@@ -1,11 +1,12 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { AuthService } from '../../core/auth/auth.service';
 import { Router } from '@angular/router';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 @Component({
   selector: 'cv-login',
   standalone: true,
-  imports: [],
+  imports: [MatSnackBarModule],
   template: `
     <div class="login-wrap">
       <header class="login-header">
@@ -169,19 +170,27 @@ import { Router } from '@angular/router';
 export class LoginComponent implements OnInit {
   private auth = inject(AuthService);
   private router = inject(Router);
+  private snack = inject(MatSnackBar);
 
   async ngOnInit(): Promise<void> {
     await this.auth.ensureUserLoaded();
     const user = this.auth.user();
     const keycloakMerchantFallback =
-      this.auth.isLoggedIn()
+      this.auth.hasActiveSession()
       && user?.identityProvider === 'keycloak'
       && !this.auth.isFinanceStaff();
 
     if (this.auth.isMerchant() || keycloakMerchantFallback) {
       await this.router.navigate(['/merchant/files']);
+      return;
     } else if (this.auth.isFinanceStaff()) {
       await this.router.navigate(['/finance/files']);
+      return;
+    }
+
+    const loginPrompt = this.auth.consumeLoginPrompt();
+    if (loginPrompt) {
+      this.snack.open(loginPrompt, 'Dismiss', { duration: 3000 });
     }
   }
 

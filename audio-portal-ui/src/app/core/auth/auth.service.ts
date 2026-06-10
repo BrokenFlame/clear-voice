@@ -15,6 +15,8 @@ export interface ClearVoiceUser {
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
+  private static readonly loginPromptStorageKey = 'clearvoice.loginPrompt';
+
   private oauthService = inject(OAuthService);
   private router = inject(Router);
 
@@ -35,7 +37,7 @@ export class AuthService {
 
     try {
       await this.oauthService.tryLoginCodeFlow();
-      if (this.hasAnyValidToken()) {
+      if (this.hasValidAccessToken()) {
         await this.loadUserProfile();
       }
     } catch (e) {
@@ -46,7 +48,7 @@ export class AuthService {
   async ensureUserLoaded(): Promise<void> {
     if (this._user()) return;
     await this.oauthService.tryLoginCodeFlow();
-    if (!this.hasAnyValidToken()) return;
+    if (!this.hasValidAccessToken()) return;
     await this.loadUserProfile();
     if (this._user()) return;
 
@@ -62,15 +64,48 @@ export class AuthService {
 
   async logout(): Promise<void> {
     this._user.set(null);
-    this.oauthService.revokeTokenAndLogout();
+
+    // Best effort: call the provider logout endpoint when available.
+    // If this fails (common in local dev due to provider/CORS quirks),
+    // still clear local auth state and route user to the home page.
+    try {
+      await this.oauthService.revokeTokenAndLogout();
+      return;
+    } catch (e) {
+      console.warn('[AuthService] Provider logout failed, falling back to local logout.', e);
+    }
+
+    this.oauthService.logOut();
+    await this.router.navigateByUrl('/');
   }
 
   getAccessToken(): string {
     return this.oauthService.getAccessToken();
   }
 
-  private hasAnyValidToken(): boolean {
-    return this.oauthService.hasValidAccessToken() || this.oauthService.hasValidIdToken();
+  hasActiveSession(): boolean {
+    const isActive = this.oauthService.hasValidAccessToken();
+    if (!isActive) {
+      this._user.set(null);
+    }
+    return isActive;
+  }
+
+  async redirectToLoginWithPrompt(message = 'You need to log in to continue.'): Promise<void> {
+    sessionStorage.setItem(AuthService.loginPromptStorageKey, message);
+    await this.router.navigateByUrl('/');
+  }
+
+  consumeLoginPrompt(): string | null {
+    const message = sessionStorage.getItem(AuthService.loginPromptStorageKey);
+    if (message) {
+      sessionStorage.removeItem(AuthService.loginPromptStorageKey);
+    }
+    return message;
+  }
+
+  private hasValidAccessToken(): boolean {
+    return this.oauthService.hasValidAccessToken();
   }
 
   private getMergedClaims(): Record<string, unknown> {

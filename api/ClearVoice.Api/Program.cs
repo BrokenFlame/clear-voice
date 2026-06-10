@@ -8,6 +8,8 @@ using ClearVoice.Api.Services;
 using ClearVoice.Api.Services.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using System.Net;
+using System.Net.Sockets;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -72,7 +74,7 @@ try
 
             options.TokenValidationParameters = new TokenValidationParameters
             {
-                ValidateIssuer           = true,
+                ValidateIssuer           = !builder.Environment.IsDevelopment(),
                 ValidIssuer              = keycloakOpts.Authority,
                 ValidateAudience         = false,
                 ValidateLifetime         = true,
@@ -229,6 +231,16 @@ try
     });
 
     // ── Request size limit (250 MB) ──────────────────────────────────────────
+    int? fallbackHttpPort = null;
+    if (builder.Environment.IsDevelopment() && !IsLocalhostPortAvailable(5000))
+    {
+        fallbackHttpPort = FindAvailableLocalhostPort(5001, 50);
+        if (fallbackHttpPort is not null)
+        {
+            Log.Warning("Port 5000 is in use. Falling back to http://127.0.0.1:{FallbackPort}", fallbackHttpPort.Value);
+        }
+    }
+
     builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(opt =>
     {
         opt.MultipartBodyLengthLimit = uploadOpts.MaxFileSizeBytes;
@@ -236,6 +248,10 @@ try
     builder.WebHost.ConfigureKestrel(k =>
     {
         k.Limits.MaxRequestBodySize = uploadOpts.MaxFileSizeBytes;
+        if (fallbackHttpPort is not null)
+        {
+            k.ListenLocalhost(fallbackHttpPort.Value);
+        }
     });
 
     // ────────────────────────────────────────────────────────────────────────
@@ -309,4 +325,31 @@ catch (Exception ex)
 finally
 {
     await Log.CloseAndFlushAsync();
+}
+
+static bool IsLocalhostPortAvailable(int port)
+{
+    try
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, port);
+        listener.Start();
+        listener.Stop();
+        return true;
+    }
+    catch (SocketException)
+    {
+        return false;
+    }
+}
+
+static int? FindAvailableLocalhostPort(int startPort, int maxAttempts)
+{
+    var port = startPort;
+    for (var i = 0; i < maxAttempts; i++, port++)
+    {
+        if (IsLocalhostPortAvailable(port))
+            return port;
+    }
+
+    return null;
 }

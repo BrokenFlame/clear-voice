@@ -9,7 +9,7 @@ export const authGuard: CanActivateFn = () => {
   return (async () => {
     await auth.ensureUserLoaded();
 
-    if (auth.isLoggedIn()) return true;
+    if (auth.hasActiveSession()) return true;
     return router.createUrlTree(['/']);
   })();
 };
@@ -20,9 +20,11 @@ export const merchantGuard: CanActivateFn = () => {
 
   return (async () => {
     await auth.ensureUserLoaded();
+    if (!auth.hasActiveSession()) return router.createUrlTree(['/']);
+
     const user = auth.user();
     const keycloakMerchantFallback =
-      auth.isLoggedIn()
+      auth.hasActiveSession()
       && user?.identityProvider === 'keycloak'
       && !auth.isFinanceStaff();
 
@@ -38,6 +40,7 @@ export const financeGuard: CanActivateFn = () => {
 
   return (async () => {
     await auth.ensureUserLoaded();
+    if (!auth.hasActiveSession()) return router.createUrlTree(['/']);
 
     if (auth.isFinanceStaff()) return true;
     if (auth.isMerchant()) return router.createUrlTree(['/merchant/files']);
