@@ -81,7 +81,7 @@ Watch the startup (takes about 30–45 s for Keycloak):
 
 ```bash
 docker compose ps
-# All services should reach "healthy" or "exited (0)" for minio-init
+# All services should reach "healthy" or "exited (0)" for one-shot init jobs
 ```
 
 What you get:
@@ -95,6 +95,19 @@ What you get:
 
 The Keycloak `clearvoice` realm is auto-imported. A demo merchant user is pre-created:
 - **Username:** `demo.merchant` · **Password:** `merchant123!` · **Merchant ID:** `MCH-00142`
+
+After Keycloak is healthy, a one-shot `keycloak-profile-init` container runs and configures realm User Profile attributes required by this project (`merchant_id`, `organisation_name`).
+
+Expected one-shot service states:
+- `minio-init` -> `Exited (0)`
+- `keycloak-profile-init` -> `Exited (0)`
+
+If `keycloak-profile-init` fails:
+
+```bash
+docker compose logs keycloak-profile-init --tail=200
+docker compose up -d keycloak-profile-init
+```
 
 ### Step 2 — Load the MinIO credentials into your shell
 

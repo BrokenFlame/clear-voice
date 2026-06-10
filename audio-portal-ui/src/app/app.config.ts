@@ -17,7 +17,16 @@ import { AuthService } from './core/auth/auth.service';
 function initializeAuth(oauthService: OAuthService, authService: AuthService) {
   return async () => {
     oauthService.configure(authConfig);
-    await oauthService.loadDiscoveryDocument();
+
+    // Do not block app bootstrap if OIDC discovery is briefly unavailable.
+    // This keeps the home page rendering and lets users retry auth once Keycloak recovers.
+    try {
+      await oauthService.loadDiscoveryDocument();
+    } catch (error) {
+      console.error('[AuthInit] Discovery document load failed; continuing app bootstrap.', error);
+      return;
+    }
+
     await authService.initialize();
   };
 }

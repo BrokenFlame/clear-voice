@@ -1,5 +1,4 @@
 import { Component, inject } from '@angular/core';
-import { DatePipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { AuthService } from '../../core/auth/auth.service';
@@ -7,7 +6,7 @@ import { AuthService } from '../../core/auth/auth.service';
 @Component({
   selector: 'cv-account',
   standalone: true,
-  imports: [DatePipe, MatIconModule, MatButtonModule],
+  imports: [MatIconModule, MatButtonModule],
   template: `
     <h1 class="cv-page-title">My details</h1>
     <p class="cv-page-sub">Your account information and current session</p>

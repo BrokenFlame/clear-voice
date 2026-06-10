@@ -1,0 +1,9 @@
+{
+  "name": "clear-voice",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix audio-portal-ui run start -- --host 127.0.0.1 --port 4200",
+    "build": "npm --prefix audio-portal-ui run build",
+    "test": "npm --prefix audio-portal-ui run test"
+  }
+}

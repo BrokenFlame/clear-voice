@@ -1,18 +1,16 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { AuthService } from '../../core/auth/auth.service';
 import { Router } from '@angular/router';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 
 @Component({
   selector: 'cv-login',
   standalone: true,
-  imports: [MatButtonModule, MatIconModule],
+  imports: [],
   template: `
     <div class="login-wrap">
       <header class="login-header">
         <div class="logo">
-          <div class="logo__mark"><mat-icon>music_note</mat-icon></div>
+          <div class="logo__mark" aria-hidden="true">♪</div>
           <div>
             <div class="logo__text">ClearVoice</div>
             <div class="logo__tag">Finance compliance portal</div>
@@ -42,12 +40,12 @@ import { MatIconModule } from '@angular/material/icon';
 
           <p class="section-label">Merchant users</p>
           <button class="btn-secondary" (click)="login()">
-            <mat-icon>lock</mat-icon>
+            <span class="inline-icon" aria-hidden="true">🔒</span>
             Sign in with merchant credentials
           </button>
 
           <div class="notice">
-            <mat-icon style="font-size:14px;vertical-align:-2px">shield</mat-icon>
+            <span class="inline-icon" aria-hidden="true">🛡</span>
             This portal is for authorised users only. All access is logged and audited.
             Unauthorised access is prohibited.
           </div>
@@ -80,7 +78,7 @@ import { MatIconModule } from '@angular/material/icon';
       width: 32px; height: 32px;
       background: #2563a8; border-radius: 6px;
       display: flex; align-items: center; justify-content: center;
-      mat-icon { color: #fff; font-size: 18px; }
+      color: #fff; font-size: 18px; line-height: 1;
     }
     .logo__text { font-family: 'DM Serif Display', serif; font-size: 17px; color: #e8edf5; }
     .logo__tag  { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.3); }
@@ -138,8 +136,13 @@ import { MatIconModule } from '@angular/material/icon';
       font-size: 14px; cursor: pointer;
       display: flex; align-items: center; justify-content: center; gap: 8px;
       transition: all 0.15s;
-      mat-icon { font-size: 16px; }
       &:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.30); }
+    }
+
+    .inline-icon {
+      font-size: 14px;
+      line-height: 1;
+      display: inline-block;
     }
 
     .divider {
