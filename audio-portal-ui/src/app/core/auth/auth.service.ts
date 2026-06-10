@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { OAuthService, UserInfo } from 'angular-oauth2-oidc';
+import { OAuthService } from 'angular-oauth2-oidc';
 
 export interface ClearVoiceUser {
   sub: string;
@@ -60,7 +60,14 @@ export class AuthService {
       const claims = this.oauthService.getIdentityClaims() as Record<string, unknown>;
       if (!claims) return;
 
-      const realmAccess = claims['realm_access'] as { roles?: string[] } | undefined;
+      // realm_access.roles is added by the oidc-realm-role-mapper to the ID token.
+      // As a defensive fallback, also check the access token — Keycloak always
+      // includes realm_access in the access token regardless of client scope config.
+      const idRealmAccess = claims['realm_access'] as { roles?: string[] } | undefined;
+      const atRealmAccess = idRealmAccess
+        ? undefined
+        : (this.decodeAccessTokenPayload()?.['realm_access'] as { roles?: string[] } | undefined);
+      const realmAccess = idRealmAccess ?? atRealmAccess;
       const roles = realmAccess?.roles ?? [];
 
       // Detect IdP: azure-federated users won't have a merchant_id
@@ -79,6 +86,22 @@ export class AuthService {
       });
     } catch (e) {
       console.error('[AuthService] Failed to load user profile:', e);
+    }
+  }
+
+  /** Decodes the JWT payload of the current access token without verifying the signature. */
+  private decodeAccessTokenPayload(): Record<string, unknown> | null {
+    try {
+      const token = this.oauthService.getAccessToken();
+      if (!token) return null;
+      const payloadB64 = token.split('.')[1];
+      if (!payloadB64) return null;
+      // Convert base64url → base64 and restore padding (RFC 4648 §5)
+      const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+      return JSON.parse(atob(padded)) as Record<string, unknown>;
+    } catch {
+      return null;
     }
   }
 }
