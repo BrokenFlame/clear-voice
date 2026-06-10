@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { AuthService } from '../../core/auth/auth.service';
 import { Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -163,16 +163,22 @@ import { MatIconModule } from '@angular/material/icon';
     }
   `],
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private auth = inject(AuthService);
   private router = inject(Router);
 
-  constructor() {
-    // Already logged in? Redirect immediately
-    if (this.auth.isMerchant()) {
-      this.router.navigate(['/merchant/files']);
+  async ngOnInit(): Promise<void> {
+    await this.auth.ensureUserLoaded();
+    const user = this.auth.user();
+    const keycloakMerchantFallback =
+      this.auth.isLoggedIn()
+      && user?.identityProvider === 'keycloak'
+      && !this.auth.isFinanceStaff();
+
+    if (this.auth.isMerchant() || keycloakMerchantFallback) {
+      await this.router.navigate(['/merchant/files']);
     } else if (this.auth.isFinanceStaff()) {
-      this.router.navigate(['/finance/files']);
+      await this.router.navigate(['/finance/files']);
     }
   }
 

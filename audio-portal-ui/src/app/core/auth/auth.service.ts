@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { OAuthService, UserInfo } from 'angular-oauth2-oidc';
+import { OAuthService } from 'angular-oauth2-oidc';
 
 export interface ClearVoiceUser {
   sub: string;
@@ -23,7 +23,8 @@ export class AuthService {
   readonly user = this._user.asReadonly();
   readonly isLoggedIn = computed(() => !!this._user());
   readonly isMerchant = computed(() =>
-    this._user()?.roles.includes('merchant_employee') ?? false
+    (this._user()?.roles.includes('merchant_employee') ?? false)
+    || !!this._user()?.merchantId
   );
   readonly isFinanceStaff = computed(() =>
     this._user()?.roles.includes('finance_staff') ?? false
@@ -42,6 +43,12 @@ export class AuthService {
     }
   }
 
+  async ensureUserLoaded(): Promise<void> {
+    if (this._user()) return;
+    if (!this.oauthService.hasValidAccessToken()) return;
+    await this.loadUserProfile();
+  }
+
   login(): void {
     this.oauthService.initCodeFlow();
   }
@@ -55,13 +62,60 @@ export class AuthService {
     return this.oauthService.getAccessToken();
   }
 
+  private decodeJwtPayload(token: string): Record<string, unknown> | null {
+    try {
+      const parts = token.split('.');
+      if (parts.length < 2) return null;
+      const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const json = atob(base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '='));
+      return JSON.parse(json) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+
+  private extractRoles(claims: Record<string, unknown>): string[] {
+    const roles = new Set<string>();
+
+    const realmAccess = claims['realm_access'] as { roles?: unknown } | undefined;
+    if (realmAccess?.roles && Array.isArray(realmAccess.roles)) {
+      for (const role of realmAccess.roles) {
+        if (typeof role === 'string' && role) roles.add(role);
+      }
+    }
+
+    const flatRealmRoles = claims['realm_access.roles'];
+    if (Array.isArray(flatRealmRoles)) {
+      for (const role of flatRealmRoles) {
+        if (typeof role === 'string' && role) roles.add(role);
+      }
+    } else if (typeof flatRealmRoles === 'string' && flatRealmRoles) {
+      roles.add(flatRealmRoles);
+    }
+
+    const resourceAccess = claims['resource_access'] as Record<string, unknown> | undefined;
+    if (resourceAccess && typeof resourceAccess === 'object') {
+      for (const clientClaims of Object.values(resourceAccess)) {
+        const clientRoles = (clientClaims as { roles?: unknown })?.roles;
+        if (Array.isArray(clientRoles)) {
+          for (const role of clientRoles) {
+            if (typeof role === 'string' && role) roles.add(role);
+          }
+        }
+      }
+    }
+
+    return Array.from(roles);
+  }
+
   private async loadUserProfile(): Promise<void> {
     try {
-      const claims = this.oauthService.getIdentityClaims() as Record<string, unknown>;
-      if (!claims) return;
+      const idClaims = this.oauthService.getIdentityClaims() as Record<string, unknown> | null;
+      const accessClaims = this.decodeJwtPayload(this.oauthService.getAccessToken());
+      const claims = ({ ...(accessClaims ?? {}), ...(idClaims ?? {}) }) as Record<string, unknown>;
+      if (Object.keys(claims).length === 0) return;
 
-      const realmAccess = claims['realm_access'] as { roles?: string[] } | undefined;
-      const roles = realmAccess?.roles ?? [];
+      const roles = this.extractRoles(claims);
 
       // Detect IdP: azure-federated users won't have a merchant_id
       const identityProvider = claims['identity_provider'] as string

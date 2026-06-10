@@ -1,5 +1,6 @@
+<#macro registrationLayout bodyClass="" displayInfo=false displayMessage=true displayRequiredFields=false>
 <!DOCTYPE html>
-<html lang="${locale.currentLanguageTag}" class="${properties.kcHtmlClass!}">
+<html lang="${(locale.currentLanguageTag)!'en'}" class="${properties.kcHtmlClass!}">
 <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
@@ -13,9 +14,9 @@
         </#list>
     </#if>
 </head>
-<body class="${properties.kcBodyClass!}">
+<body class="${properties.kcBodyClass!} ${bodyClass}">
 
-    <#-- ── Top bar ─────────────────────────────────────── -->
+    <#-- Top bar -->
     <header id="kc-header">
         <div id="kc-header-wrapper">
             <span>ClearVoice</span>
@@ -28,12 +29,12 @@
         </span>
     </header>
 
-    <#-- ── Main ─────────────────────────────────────────── -->
+    <#-- Main -->
     <main id="kc-content" role="main">
         <div class="card-pf">
 
             <#-- Global alert messages -->
-            <#if displayMessage?? && message?has_content && (message.type != 'warning' || !isAppInitiatedAction??)>
+            <#if displayMessage && message?has_content && (message.type != 'warning' || !isAppInitiatedAction??)>
                 <div class="alert alert-${message.type}" role="alert">
                     <span>${kcSanitize(message.summary)?no_esc}</span>
                 </div>
@@ -41,7 +42,7 @@
 
             <#nested "form">
 
-            <#if displayInfo??>
+            <#if displayInfo>
                 <div id="kc-info">
                     <#nested "info">
                 </div>
@@ -49,7 +50,7 @@
         </div>
     </main>
 
-    <#-- ── Footer ───────────────────────────────────────── -->
+    <#-- Footer -->
     <footer id="kc-footer">
         <span>&copy; 2025 ClearVoice Finance Portal</span>
         <span>Powered by Keycloak &middot; OIDC 1.0</span>
@@ -62,3 +63,4 @@
     </#if>
 </body>
 </html>
+</#macro>
