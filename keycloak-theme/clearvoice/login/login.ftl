@@ -19,7 +19,7 @@
         <#if realm.password>
             <#-- Merchant credential login -->
             <p style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.30);margin-bottom:8px;">
-                Merchant users
+                Users
             </p>
 
             <#if messagesPerField.existsError('username','password')>
@@ -94,7 +94,7 @@
                 <div style="flex:1;height:0.5px;background:rgba(255,255,255,0.10);"></div>
             </div>
             <p style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.30);margin-bottom:8px;">
-                Finance company staff
+                Auditors
             </p>
             <ul id="kc-social-providers">
                 <#list social.providers as p>
