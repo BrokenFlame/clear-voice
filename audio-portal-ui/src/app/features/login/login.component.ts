@@ -2,6 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { AuthService } from '../../core/auth/auth.service';
 import { Router } from '@angular/router';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'cv-login',
@@ -27,23 +28,31 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
           <p class="subtitle">Upload and manage compliance call recordings for your finance agreements.</p>
 
           <p class="section-label">Finance company staff</p>
-          <button class="btn-primary" (click)="login()">
+          <button class="btn-primary" (click)="loginWithEntra()">
             <svg width="16" height="16" viewBox="0 0 23 23" aria-hidden="true">
               <path fill="#f35325" d="M1 1h10v10H1z"/>
               <path fill="#81bc06" d="M12 1h10v10H12z"/>
               <path fill="#05a6f0" d="M1 12h10v10H1z"/>
               <path fill="#ffba08" d="M12 12h10v10H12z"/>
             </svg>
-            Continue with Azure AD
+            Continue with Azure Entra ID
           </button>
+          <p class="helper-text">Uses the Keycloak Azure broker when Entra is configured.</p>
 
           <div class="divider"><span></span><em>or</em><span></span></div>
 
-          <p class="section-label">Merchant users</p>
-          <button class="btn-secondary" (click)="login()">
+          <p class="section-label">Local test users</p>
+          <button class="btn-secondary" (click)="loginWithLocal()">
             <span class="inline-icon" aria-hidden="true">🔒</span>
-            Sign in with merchant credentials
+            Sign in with local credentials
           </button>
+
+          @if (!isProduction) {
+            <div class="dev-credentials">
+              <div><strong>Finance test user</strong>: <code>demo.finance</code> / <code>finance123!</code></div>
+              <div><strong>Merchant test user</strong>: <code>demo.merchant</code> / <code>merchant123!</code></div>
+            </div>
+          }
 
           <div class="notice">
             <span class="inline-icon" aria-hidden="true">🛡</span>
@@ -140,6 +149,30 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
       &:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.30); }
     }
 
+    .helper-text {
+      margin: 8px 0 0;
+      font-size: 12px;
+      color: rgba(255,255,255,0.38);
+      line-height: 1.5;
+    }
+
+    .dev-credentials {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: rgba(37,99,168,0.12);
+      border: 0.5px solid rgba(91,156,246,0.28);
+      color: rgba(255,255,255,0.72);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .dev-credentials code {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: #dbeafe;
+    }
+
     .inline-icon {
       font-size: 14px;
       line-height: 1;
@@ -171,6 +204,7 @@ export class LoginComponent implements OnInit {
   private auth = inject(AuthService);
   private router = inject(Router);
   private snack = inject(MatSnackBar);
+  protected readonly isProduction = environment.production;
 
   async ngOnInit(): Promise<void> {
     await this.auth.ensureUserLoaded();
@@ -194,7 +228,11 @@ export class LoginComponent implements OnInit {
     }
   }
 
-  login(): void {
-    this.auth.login();
+  loginWithLocal(): void {
+    this.auth.loginWithLocalAccount();
+  }
+
+  loginWithEntra(): void {
+    this.auth.loginWithEntraAccount();
   }
 }

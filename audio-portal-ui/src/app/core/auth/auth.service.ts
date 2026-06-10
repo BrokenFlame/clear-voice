@@ -62,6 +62,14 @@ export class AuthService {
     this.oauthService.initCodeFlow();
   }
 
+  loginWithLocalAccount(): void {
+    this.oauthService.initCodeFlow();
+  }
+
+  loginWithEntraAccount(): void {
+    this.oauthService.initCodeFlow(undefined, { kc_idp_hint: 'azure' });
+  }
+
   async logout(): Promise<void> {
     this._user.set(null);
 

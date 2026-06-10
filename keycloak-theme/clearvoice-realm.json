@@ -91,6 +91,20 @@
           }
         },
         {
+          "name": "identity_provider",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "identity_provider",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "identity_provider",
+            "jsonType.label": "String"
+          }
+        },
+        {
           "name": "realm_roles",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-realm-role-mapper",
@@ -175,7 +189,41 @@
       ],
       "realmRoles": ["merchant_employee"],
       "attributes": {
+        "identity_provider": ["keycloak"],
         "merchant_id": ["MCH-00142"],
+        "organisation_name": ["Pinnacle Auto Finance Ltd"]
+      }
+    },
+    {
+      "username": "demo2.merchant",
+      "email": "demo2.merchant@example.com",
+      "firstName": "Demo2",
+      "lastName": "Merchant",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "merchant123!", "temporary": false }
+      ],
+      "realmRoles": ["merchant_employee"],
+      "attributes": {
+        "identity_provider": ["keycloak"],
+        "merchant_id": ["MCH-00142"],
+        "organisation_name": ["Pinnacle Auto Finance Ltd"]
+      }
+    },
+    {
+      "username": "demo.finance",
+      "email": "demo.finance@example.com",
+      "firstName": "Demo",
+      "lastName": "Finance",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "finance123!", "temporary": false }
+      ],
+      "realmRoles": ["finance_staff"],
+      "attributes": {
+        "identity_provider": ["keycloak"],
         "organisation_name": ["Pinnacle Auto Finance Ltd"]
       }
     }
