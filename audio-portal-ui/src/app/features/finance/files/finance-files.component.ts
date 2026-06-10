@@ -137,6 +137,7 @@ import { ApiService, AudioFileResponse, PagedResponse } from '../../../core/serv
 export class FinanceFilesComponent implements OnInit {
   private api = inject(ApiService);
   private snack = inject(MatSnackBar);
+  private currentAudio: HTMLAudioElement | null = null;
 
   paged = signal<PagedResponse<AudioFileResponse> | null>(null);
   loading = signal(true);
@@ -175,7 +176,13 @@ export class FinanceFilesComponent implements OnInit {
       this.nowPlaying.set(f);
       // Fetch a pre-signed URL then set audio src
       this.api.getPlaybackUrl(f.id).subscribe(r => {
+        // Stop any currently playing audio
+        if (this.currentAudio) {
+          this.currentAudio.pause();
+          this.currentAudio = null;
+        }
         const audio = new Audio(r.url);
+        this.currentAudio = audio;
         audio.play();
         audio.ontimeupdate = () => {
           this.audioTime.set(this.fmtTime(audio.currentTime) + ' / ' + this.fmtTime(audio.duration));
@@ -186,6 +193,10 @@ export class FinanceFilesComponent implements OnInit {
   }
 
   stopPlay(): void {
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+      this.currentAudio = null;
+    }
     this.playingId.set(null);
     this.nowPlaying.set(null);
     this.audioTime.set('—');
