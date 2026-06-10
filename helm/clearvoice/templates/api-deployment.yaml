@@ -1,0 +1,75 @@
+{{- $api := .Values.api }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "clearvoice.fullname" . }}-api
+  labels:
+    {{- include "clearvoice.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  {{- if not $api.autoscaling.enabled }}
+  replicas: {{ $api.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "clearvoice.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        {{- include "clearvoice.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+      annotations:
+        # Force pod restart when config changes
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "clearvoice.fullname" . }}-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+        - name: api
+          image: "{{ .Values.global.imageRegistry }}/{{ $api.image.repository }}:{{ $api.image.tag }}"
+          imagePullPolicy: {{ $api.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            {{- range $k, $v := $api.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- range $api.secretEnv }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .secretKey }}
+            {{- end }}
+          livenessProbe:
+            {{- toYaml $api.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml $api.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml $api.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: api

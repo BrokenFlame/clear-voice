@@ -1,0 +1,331 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap');
+
+/* ── Reset & base ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: #0c1628;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  color: #e8edf5;
+}
+
+/* ── Portal shell ─────────────────────────────────────── */
+#kc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 40px;
+  border-bottom: 0.5px solid rgba(255,255,255,0.08);
+}
+
+#kc-header-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Logo mark */
+#kc-header-wrapper::before {
+  content: '';
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  background: #2563a8;
+  border-radius: 6px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 18px;
+  flex-shrink: 0;
+}
+
+#kc-header-wrapper .kc-logo-text,
+#kc-header-wrapper span {
+  font-family: 'DM Serif Display', serif;
+  font-size: 18px;
+  color: #e8edf5;
+  letter-spacing: -0.2px;
+}
+
+/* ── Main content area ───────────────────────────────── */
+#kc-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+}
+
+.login-pf-page #kc-content {
+  background: transparent;
+}
+
+/* ── Login card ──────────────────────────────────────── */
+#kc-container-wrapper,
+.card-pf {
+  background: #131f35;
+  border: 0.5px solid rgba(255,255,255,0.10);
+  border-radius: 16px;
+  padding: 40px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: none;
+}
+
+/* Keycloak wraps in multiple containers — flatten them */
+.login-pf-page .card-pf { margin: 0; }
+#kc-form { margin: 0; }
+
+/* ── Headings ────────────────────────────────────────── */
+#kc-page-title,
+.pf-c-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 26px;
+  color: #e8edf5;
+  font-weight: 400;
+  margin-bottom: 6px;
+  line-height: 1.2;
+}
+
+/* Eyebrow above title */
+#kc-page-title::before {
+  content: 'Welcome back';
+  display: block;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.40);
+  margin-bottom: 10px;
+  font-weight: 400;
+}
+
+/* Sub text */
+#kc-info-message,
+.subtitle {
+  font-size: 13px;
+  color: rgba(255,255,255,0.45);
+  margin-bottom: 28px;
+  line-height: 1.6;
+}
+
+/* ── Form labels ─────────────────────────────────────── */
+label,
+.pf-c-form__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.50);
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+  display: block;
+}
+
+/* ── Inputs ──────────────────────────────────────────── */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+.pf-c-form-control,
+.form-control {
+  width: 100%;
+  background: rgba(255,255,255,0.05);
+  border: 0.5px solid rgba(255,255,255,0.14);
+  border-radius: 8px;
+  padding: 11px 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: #e8edf5;
+  outline: none;
+  transition: border-color 0.15s;
+  margin-bottom: 16px;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+.pf-c-form-control:focus {
+  border-color: rgba(93,154,246,0.55);
+  background: rgba(255,255,255,0.07);
+}
+
+input::placeholder { color: rgba(255,255,255,0.25); }
+
+/* ── Remember me ─────────────────────────────────────── */
+#rememberMe,
+.checkbox { margin-bottom: 20px; }
+
+#rememberMe label,
+.checkbox label {
+  font-size: 13px;
+  color: rgba(255,255,255,0.50);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 400;
+}
+
+/* ── Primary button ──────────────────────────────────── */
+input[type="submit"],
+button[type="submit"],
+.btn-primary,
+#kc-login {
+  width: 100%;
+  padding: 12px 20px;
+  background: #2563a8;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-top: 8px;
+}
+
+input[type="submit"]:hover,
+button[type="submit"]:hover,
+.btn-primary:hover,
+#kc-login:hover {
+  background: #1d4f8a;
+}
+
+/* ── Social / IdP buttons ────────────────────────────── */
+#kc-social-providers {
+  margin-top: 0;
+  padding: 0;
+}
+
+#kc-social-providers li {
+  list-style: none;
+  margin-bottom: 10px;
+}
+
+.pf-c-button.pf-m-control,
+.zocial,
+.social-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 20px;
+  background: transparent;
+  border: 0.5px solid rgba(255,255,255,0.18);
+  border-radius: 8px;
+  color: rgba(255,255,255,0.70);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+}
+
+.pf-c-button.pf-m-control:hover,
+.zocial:hover,
+.social-link:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.30);
+  color: #e8edf5;
+}
+
+/* ── Divider ─────────────────────────────────────────── */
+.login-pf-settings,
+#kc-form-options { margin-bottom: 16px; }
+
+.divider, hr {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  border: none;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 0.5px;
+  background: rgba(255,255,255,0.10);
+}
+
+/* ── Forgot password / links ─────────────────────────── */
+#kc-form-options a,
+.login-pf-page a,
+a {
+  color: #5b9cf6;
+  text-decoration: none;
+  font-size: 13px;
+}
+
+a:hover { text-decoration: underline; }
+
+/* ── Alerts ──────────────────────────────────────────── */
+.alert, .pf-c-alert {
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.5;
+}
+
+.alert-error, .pf-m-danger {
+  background: rgba(226,75,74,0.10);
+  border: 0.5px solid rgba(226,75,74,0.30);
+  color: #f09595;
+}
+
+.alert-warning, .pf-m-warning {
+  background: rgba(186,117,23,0.10);
+  border: 0.5px solid rgba(186,117,23,0.30);
+  color: #FAC775;
+}
+
+.alert-success, .pf-m-success {
+  background: rgba(99,153,34,0.10);
+  border: 0.5px solid rgba(99,153,34,0.30);
+  color: #C0DD97;
+}
+
+/* ── Security notice ─────────────────────────────────── */
+#kc-info {
+  margin-top: 24px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 0.5px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.35);
+  line-height: 1.6;
+  text-align: center;
+}
+
+/* ── Footer ──────────────────────────────────────────── */
+#kc-footer,
+footer {
+  padding: 16px 40px;
+  border-top: 0.5px solid rgba(255,255,255,0.06);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#kc-footer span,
+footer span {
+  font-size: 11px;
+  color: rgba(255,255,255,0.20);
+}
+
+/* ── Responsive ──────────────────────────────────────── */
+@media (max-width: 480px) {
+  #kc-header { padding: 16px 20px; }
+  #kc-content { padding: 24px 16px; }
+  .card-pf { padding: 28px 20px; }
+  #kc-footer, footer { flex-direction: column; gap: 4px; }
+}

@@ -1,0 +1,27 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "clearvoice.fullname" . }}
+  labels:
+    {{- include "clearvoice.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "clearvoice.fullname" $ }}-{{ .backend }}
+                port:
+                  number: {{ if eq .backend "api" }}{{ $.Values.api.service.port }}{{ else }}{{ $.Values.ui.service.port }}{{ end }}
+          {{- end }}
+    {{- end }}
+{{- end }}

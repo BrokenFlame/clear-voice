@@ -1,0 +1,183 @@
+{
+  "realm": "clearvoice",
+  "displayName": "ClearVoice Finance Portal",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "loginTheme": "clearvoice",
+  "accountTheme": "clearvoice",
+  "emailTheme": "clearvoice",
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+
+  "roles": {
+    "realm": [
+      {
+        "name": "merchant_employee",
+        "description": "Merchant portal user — scoped to a single merchant_id"
+      },
+      {
+        "name": "finance_staff",
+        "description": "Finance company employee — full read access, can delete and audit"
+      }
+    ]
+  },
+
+  "groups": [
+    { "name": "Merchants" },
+    { "name": "FinanceStaff" }
+  ],
+
+  "clients": [
+    {
+      "clientId": "clearvoice-ui",
+      "name": "ClearVoice Angular SPA",
+      "description": "Public OIDC client for the Angular 20 single-page application",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "protocol": "openid-connect",
+      "rootUrl": "http://localhost:4200",
+      "baseUrl": "http://localhost:4200",
+      "redirectUris": [
+        "http://localhost:4200/*",
+        "https://clearvoice.example.com/*"
+      ],
+      "webOrigins": [
+        "http://localhost:4200",
+        "https://clearvoice.example.com"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "access.token.lifespan": "300",
+        "post.logout.redirect.uris": "http://localhost:4200/*##https://clearvoice.example.com/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "merchant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "merchant_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "merchant_id",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "organisation_name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "organisation_name",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "organisation_name",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "realm_roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "clearvoice-api",
+      "name": "ClearVoice .NET API",
+      "description": "Confidential client used for API token validation (optional — API validates JWTs from Keycloak JWKS endpoint)",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocol": "openid-connect",
+      "secret": "CHANGE_ME_IN_PRODUCTION"
+    }
+  ],
+
+  "identityProviders": [
+    {
+      "alias": "azure",
+      "displayName": "Continue with Azure AD",
+      "providerId": "oidc",
+      "enabled": true,
+      "updateProfileFirstLoginMode": "on",
+      "trustEmail": true,
+      "storeToken": false,
+      "addReadTokenRoleOnCreate": false,
+      "authenticateByDefault": false,
+      "linkOnly": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "clientId": "AZURE_CLIENT_ID",
+        "clientSecret": "AZURE_CLIENT_SECRET",
+        "authorizationUrl": "https://login.microsoftonline.com/AZURE_TENANT_ID/oauth2/v2.0/authorize",
+        "tokenUrl": "https://login.microsoftonline.com/AZURE_TENANT_ID/oauth2/v2.0/token",
+        "jwksUrl": "https://login.microsoftonline.com/AZURE_TENANT_ID/discovery/v2.0/keys",
+        "logoutUrl": "https://login.microsoftonline.com/AZURE_TENANT_ID/oauth2/v2.0/logout",
+        "userInfoUrl": "https://graph.microsoft.com/oidc/userinfo",
+        "issuer": "https://login.microsoftonline.com/AZURE_TENANT_ID/v2.0",
+        "defaultScope": "openid email profile",
+        "validateSignature": "true",
+        "useJwksUrl": "true",
+        "pkceEnabled": "true",
+        "pkceMethod": "S256"
+      }
+    }
+  ],
+
+  "identityProviderMappers": [
+    {
+      "name": "azure-finance_staff-role-mapper",
+      "identityProviderAlias": "azure",
+      "identityProviderMapper": "hardcoded-role-idp-mapper",
+      "config": {
+        "syncMode": "INHERIT",
+        "role": "finance_staff"
+      }
+    }
+  ],
+
+  "users": [
+    {
+      "username": "demo.merchant",
+      "email": "demo.merchant@example.com",
+      "firstName": "Demo",
+      "lastName": "Merchant",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "merchant123!", "temporary": false }
+      ],
+      "realmRoles": ["merchant_employee"],
+      "attributes": {
+        "merchant_id": ["MCH-00142"],
+        "organisation_name": ["Pinnacle Auto Finance Ltd"]
+      }
+    }
+  ]
+}

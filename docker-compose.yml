@@ -1,0 +1,155 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  ClearVoice — local development stack (Mac / Linux)
+#
+#  Services started by default:
+#    postgres  → PostgreSQL 16         localhost:5432
+#    keycloak  → Keycloak 24           localhost:8080
+#    minio     → S3-compatible store   localhost:9000  (API)
+#                MinIO console         localhost:9001
+#    minio-init→ one-shot bucket setup
+#
+#  Run the .NET API and Angular UI outside Docker for hot-reload:
+#    cd api/ClearVoice.Api && dotnet run
+#    cd audio-portal-ui    && ng serve
+#
+#  To run the full containerised stack (API + UI in Docker too):
+#    docker compose --profile full up
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    platform: linux/amd64
+    environment:
+      POSTGRES_DB:       clearvoice
+      POSTGRES_USER:     clearvoice
+      POSTGRES_PASSWORD: clearvoice_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clearvoice"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Keycloak ────────────────────────────────────────────────────────────────
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    platform: linux/amd64
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN:          admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB:                   dev-mem
+      KC_HTTP_PORT:            8080
+      # Suppress noisy startup warnings on Mac ARM
+      KC_LOG_LEVEL:            INFO
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak-theme/clearvoice-realm.json:/opt/keycloak/data/import/clearvoice-realm.json:ro
+      - ./keycloak-theme/clearvoice:/opt/keycloak/themes/clearvoice:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/realms/clearvoice/.well-known/openid-configuration || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+
+  # ── MinIO (S3-compatible object store) ──────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    platform: linux/amd64
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER:     clearvoice
+      MINIO_ROOT_PASSWORD: clearvoice_dev_secret
+    ports:
+      - "9000:9000"   # S3 API  — used by the .NET API
+      - "9001:9001"   # Web console — http://localhost:9001
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # ── MinIO bucket initialiser (runs once, then exits) ────────────────────────
+  minio-init:
+    image: minio/mc:latest
+    platform: linux/amd64
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER:     clearvoice
+      MINIO_ROOT_PASSWORD: clearvoice_dev_secret
+    volumes:
+      - ./docker/minio-init.sh:/minio-init.sh:ro
+    entrypoint: ["/bin/sh", "/minio-init.sh"]
+    restart: "no"
+
+  # ── .NET API ─────────────────────────────────────────────────────────────────
+  # Only starts with --profile full.
+  # For day-to-day dev run: cd api/ClearVoice.Api && dotnet run
+  api:
+    profiles: ["full"]
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    environment:
+      ASPNETCORE_ENVIRONMENT:  Development
+      ASPNETCORE_URLS:         http://+:5000
+      # PostgreSQL
+      ConnectionStrings__Postgres: >-
+        Host=postgres;Port=5432;Database=clearvoice;Username=clearvoice;Password=clearvoice_dev
+      # Keycloak — uses the internal Docker network name
+      Keycloak__Authority:             http://keycloak:8080/realms/clearvoice
+      Keycloak__RequireHttpsMetadata:  "false"
+      # MinIO — internal Docker network
+      Storage__Provider:                     S3
+      Storage__S3__BucketName:               clearvoice-recordings
+      Storage__S3__Region:                   us-east-1
+      Storage__S3__UseIRSA:                  "false"
+      Storage__S3__ServiceUrl:               http://minio:9000
+      Storage__S3__ForcePathStyle:           "true"
+      # Presigned URLs must point at localhost so the browser can reach them
+      Storage__S3__PresignedUrlHostOverride: http://localhost:9000
+      # MinIO credentials via AWS SDK env vars
+      AWS_ACCESS_KEY_ID:     clearvoice
+      AWS_SECRET_ACCESS_KEY: clearvoice_dev_secret
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+  # ── Angular UI (production build served by nginx) ────────────────────────────
+  # Only starts with --profile full.
+  # For day-to-day dev run: cd audio-portal-ui && ng serve
+  ui:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: ./ui/Dockerfile
+    platform: linux/amd64
+    ports:
+      - "4200:8080"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  minio_data:
