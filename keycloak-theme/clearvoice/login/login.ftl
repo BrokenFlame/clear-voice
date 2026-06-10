@@ -42,7 +42,7 @@
                         autofocus
                         autocomplete="username"
                         placeholder="your.username"
-                        value="${(login.username!'')?html}"
+                        value="${login.username!''}"
                     />
                 </div>
 
