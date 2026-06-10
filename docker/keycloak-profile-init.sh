@@ -205,6 +205,61 @@ JSON
     --data-binary "[$ROLE_RESPONSE]" >/dev/null || true
 }
 
+ensure_merchant1_demo_user() {
+  USER_ID=$(lookup_user_id demo1.merchant)
+
+  if [ -z "$USER_ID" ]; then
+    cat >/tmp/demo1-merchant-user.json <<'JSON'
+{
+  "username": "demo1.merchant",
+  "email": "demo1.merchant@example.com",
+  "firstName": "Demo1",
+  "lastName": "Merchant",
+  "enabled": true,
+  "emailVerified": true,
+  "attributes": {
+    "identity_provider": ["keycloak"],
+    "merchant_id": ["MCH-00143"],
+    "organisation_name": ["Premier Transport Finance Ltd"]
+  }
+}
+JSON
+
+    curl -sS -f -X POST "$KEYCLOAK_URL/admin/realms/$REALM/users" \
+      -H "$(auth_header)" \
+      -H 'Content-Type: application/json' \
+      --data-binary @/tmp/demo1-merchant-user.json >/dev/null
+
+    USER_ID=$(lookup_user_id demo1.merchant)
+  fi
+
+  if [ -z "$USER_ID" ]; then
+    echo "Failed to create or resolve demo1.merchant user"
+    exit 1
+  fi
+
+  cat >/tmp/demo1-merchant-password.json <<'JSON'
+{
+  "type": "password",
+  "value": "merchant123!",
+  "temporary": false
+}
+JSON
+
+  curl -sS -f -X PUT "$KEYCLOAK_URL/admin/realms/$REALM/users/$USER_ID/reset-password" \
+    -H "$(auth_header)" \
+    -H 'Content-Type: application/json' \
+    --data-binary @/tmp/demo1-merchant-password.json >/dev/null
+
+  ROLE_RESPONSE=$(curl -sS -f "$KEYCLOAK_URL/admin/realms/$REALM/roles/merchant_employee" \
+    -H "$(auth_header)")
+
+  curl -sS -f -X POST "$KEYCLOAK_URL/admin/realms/$REALM/users/$USER_ID/role-mappings/realm" \
+    -H "$(auth_header)" \
+    -H 'Content-Type: application/json' \
+    --data-binary "[$ROLE_RESPONSE]" >/dev/null || true
+}
+
 cat >/tmp/user-profile.json <<'JSON'
 {
   "attributes": [
@@ -288,6 +343,7 @@ printf '%s' "$PROFILE" | grep -q '"name":"merchant_id"' || {
 
 ensure_identity_provider_mapper
 ensure_finance_demo_user
+ensure_merchant1_demo_user
 ensure_merchant2_demo_user
 
 echo "Keycloak user profile configured and demo users ensured"

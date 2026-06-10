@@ -195,6 +195,23 @@
       }
     },
     {
+      "username": "demo1.merchant",
+      "email": "demo1.merchant@example.com",
+      "firstName": "Demo1",
+      "lastName": "Merchant",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "merchant123!", "temporary": false }
+      ],
+      "realmRoles": ["merchant_employee"],
+      "attributes": {
+        "identity_provider": ["keycloak"],
+        "merchant_id": ["MCH-00143"],
+        "organisation_name": ["Premier Transport Finance Ltd"]
+      }
+    },
+    {
       "username": "demo2.merchant",
       "email": "demo2.merchant@example.com",
       "firstName": "Demo2",
