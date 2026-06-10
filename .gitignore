@@ -30,6 +30,7 @@ yarn-error.log*
 # .NET build artifacts
 bin/Debug/
 obj/Debug/
+api/ClearVoice.Api/obj/Debug/
 
 # macOS
 .DS_Store
