@@ -69,20 +69,19 @@ s3:
   useIRSA: true
   iamRoleArn: "arn:aws:iam::123456789012:role/clearvoice-api-s3-role"
 
-# ── Ingress (ALB) ─────────────────────────────────────────────────────────────
+# ── Ingress — Istio ingress-gateway with TLS offloading ──────────────────────
+# Istio ingress-gateway terminates TLS; pods receive plain HTTP.
+# cert-manager provisions the certificate and stores it in clearvoice-tls.
+# The secret must be in the same namespace as the Ingress resource OR in the
+# istio-system namespace if using Istio's credentialName secret projection.
 ingress:
   enabled: true
-  className: alb
-  
+  className: istio
+
   annotations:
-    kubernetes.io/ingress.class: alb
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
-    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:eu-west-2:123456789012:certificate/12345678-1234-1234-1234-123456789012"
-    alb.ingress.kubernetes.io/ssl-redirect: "443"
-    alb.ingress.kubernetes.io/wafv2-acl-arn: "arn:aws:wafv2:eu-west-2:123456789012:regional/webacl/clearvoice-prod/a1b2c3d4-e5f6"
-  
+    # cert-manager provisions and rotates the TLS certificate automatically.
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+
   hosts:
     - host: clearvoice.example.com
       paths:
@@ -92,6 +91,13 @@ ingress:
         - path: /
           pathType: Prefix
           backend: ui
+
+  # Istio reads spec.tls to configure TLS on the ingress gateway.
+  # Remove this block if you manage TLS via a Gateway CRD instead.
+  tls:
+    - secretName: clearvoice-tls
+      hosts:
+        - clearvoice.example.com
 
 # ── Pod Disruption Budget ─────────────────────────────────────────────────────
 podDisruptionBudget:

@@ -202,32 +202,32 @@ ui:
 # Set the Keycloak authority URL in the API secret (keycloak-authority key) and
 # reference it in the UI environment variable NG_KEYCLOAK_URL.
 
-# ── AWS Application Load Balancer (ALB) Ingress ────────────────────────────────
-# Requires: AWS Load Balancer Controller installed in cluster
+# ── Ingress ───────────────────────────────────────────────────────────────────
+# Set className and annotations to match your ingress controller.
+#
+# Istio (production — TLS offloaded at ingress gateway):
+#   className: istio
+#   annotations:
+#     cert-manager.io/cluster-issuer: letsencrypt-prod
+#   tls:
+#     - secretName: clearvoice-tls
+#       hosts: [clearvoice.example.com]
+#
+# AWS ALB (alternative):
+#   className: alb
+#   annotations:
+#     alb.ingress.kubernetes.io/scheme: internet-facing
+#     alb.ingress.kubernetes.io/target-type: ip
+#     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+#     alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:..."
+#     alb.ingress.kubernetes.io/ssl-redirect: "443"
 ingress:
   enabled: true
-  className: alb
-  
-  annotations:
-    kubernetes.io/ingress.class: alb
-    alb.ingress.kubernetes.io/scheme: internet-facing
-    alb.ingress.kubernetes.io/target-type: ip
-    
-    # HTTPS termination
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
-    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:eu-west-2:ACCOUNT_ID:certificate/CERT_ID"
-    alb.ingress.kubernetes.io/ssl-redirect: "443"
-    
-    # Security headers
-    alb.ingress.kubernetes.io/load-balancer-attributes: >
-      idle_timeout.connection.draining.enabled=true,
-      idle_timeout.connection.draining.timeout=30,
-      routing.http2.enabled=true
-    
-    # WAF association (optional)
-    alb.ingress.kubernetes.io/wafv2-acl-arn: "arn:aws:wafv2:eu-west-2:ACCOUNT_ID:regional/webacl/clearvoice-prod/a1b2c3d4-e5f6"
-  
-  # Hosts and paths
+
+  # Override per environment — do not add controller-specific annotations here.
+  className: ""
+  annotations: {}
+
   hosts:
     - host: clearvoice.example.com
       paths:
@@ -237,12 +237,11 @@ ingress:
         - path: /
           pathType: Prefix
           backend: ui
-  
-  # TLS/SSL configuration
-  tls:
-    enabled: true
-    secretName: clearvoice-tls
-    issuer: letsencrypt-prod  # For cert-manager (optional)
+
+  # TLS — list of { secretName, hosts[] }.
+  # The ingress controller (Istio / ALB) reads this to configure TLS termination.
+  # Leave empty [] if TLS is handled entirely at the gateway without a K8s secret.
+  tls: []
 
 # ── Network Policy ────────────────────────────────────────────────────────────
 networkPolicy:
