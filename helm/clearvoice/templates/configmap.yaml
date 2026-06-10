@@ -1,0 +1,27 @@
+{{- if .Values.api }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clearvoice.fullname" . }}-api-config
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "clearvoice.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+data:
+  {{- if .Values.api.env }}
+  {{- range $k, $v := .Values.api.env }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}
+  {{- end }}
+  
+  # Database connection info (reference only; actual password in Secret)
+  ASPNETCORE_ENVIRONMENT: {{ .Values.api.env.ASPNETCORE_ENVIRONMENT | quote }}
+  Storage__Provider: {{ .Values.api.env.Storage__Provider | quote }}
+  
+  # Keycloak OIDC settings
+  Keycloak__RequireHttpsMetadata: {{ .Values.api.env.Keycloak__RequireHttpsMetadata | quote }}
+  
+  # Logging configuration
+  Logging__LogLevel__Default: {{ .Values.api.env.Logging__LogLevel__Default | default "Information" | quote }}
+  Logging__LogLevel__Microsoft: {{ .Values.api.env.Logging__LogLevel__Microsoft | default "Warning" | quote }}
+{{- end }}
