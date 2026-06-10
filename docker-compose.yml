@@ -7,13 +7,14 @@
 #    minio     → S3-compatible store   localhost:9100  (API)
 #                MinIO console         localhost:9101
 #    minio-init→ one-shot bucket setup
+#    api       → .NET 9 API            localhost:5000
+#    ui        → Angular app (nginx)   localhost:4200
 #
-#  Run the .NET API and Angular UI outside Docker for hot-reload:
-#    cd api/ClearVoice.Api && dotnet run
-#    cd audio-portal-ui    && ng serve
+#  One-command full local demo:
+#    docker compose up --build
 #
-#  To run the full containerised stack (API + UI in Docker too):
-#    docker compose --profile full up
+#  Infra-only mode (for hot-reload dev outside Docker):
+#    docker compose up postgres keycloak keycloak-profile-init minio minio-init
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -122,10 +123,8 @@ services:
     restart: "no"
 
   # ── .NET API ─────────────────────────────────────────────────────────────────
-  # Only starts with --profile full.
-  # For day-to-day dev run: cd api/ClearVoice.Api && dotnet run
+  # Included by default for complete local demonstrations.
   api:
-    profiles: ["full"]
     build:
       context: ./api
       dockerfile: Dockerfile
@@ -164,10 +163,8 @@ services:
         condition: service_completed_successfully
 
   # ── Angular UI (production build served by nginx) ────────────────────────────
-  # Only starts with --profile full.
-  # For day-to-day dev run: cd audio-portal-ui && ng serve
+  # Included by default for complete local demonstrations.
   ui:
-    profiles: ["full"]
     build:
       context: .
       dockerfile: ./ui/Dockerfile

@@ -30,7 +30,39 @@ A secure, cloud-native compliance recording portal for managing encrypted audio 
    cd clear-voice
    ```
 
-2. **Start the backend services** (Keycloak, PostgreSQL, MinIO)
+2. **Start a complete local demo environment (all services in Docker)**
+  ```bash
+  docker compose up --build
+  ```
+  This builds and starts PostgreSQL, Keycloak, MinIO, the .NET API, and the Angular UI.
+
+  - **UI**: http://localhost:4200
+  - **API**: http://localhost:5000
+  - **Keycloak**: http://localhost:8080
+  - **MinIO**: http://localhost:9100
+
+3. **Access the application**
+  - Navigate to http://localhost:4200
+  - Log in using local credentials (see [Test Users](#test-users))
+
+### Infra-only Option (hot-reload outside Docker)
+
+If you want to run API/UI directly on your machine for hot reload:
+
+```bash
+docker compose up postgres keycloak keycloak-profile-init minio minio-init
+```
+
+Then start app processes locally:
+
+```bash
+cd api/ClearVoice.Api && dotnet run
+cd audio-portal-ui && npm install && ng serve --port 4200
+```
+
+### Legacy step-by-step (local app processes)
+
+1. **Start the backend services** (Keycloak, PostgreSQL, MinIO)
    ```bash
    docker compose up -d
    ```
@@ -54,9 +86,9 @@ A secure, cloud-native compliance recording portal for managing encrypted audio 
    ```
    - Runs on http://localhost:4200
 
-5. **Access the application**
-   - Navigate to http://localhost:4200
-   - Log in using local credentials (see [Test Users](#test-users))
+4. **Access the application**
+  - Navigate to http://localhost:4200
+  - Log in using local credentials (see [Test Users](#test-users))
 
 ### Docker Compose Services
 
@@ -65,10 +97,12 @@ The `docker-compose.yml` defines:
 | Service | Port | Purpose |
 |---------|------|---------|
 | **keycloak** | 8080 | OIDC provider; imports realm from `keycloak-theme/clearvoice-realm.json` |
-| **postgres** | 5432 | Database (in-memory H2 for Keycloak on every restart) |
+| **postgres** | 5432 | Database for Keycloak and API metadata |
 | **minio** | 9100 (API), 9101 (Console) | S3-compatible object storage for audio files |
 | **minio-init** | – | Initializes MinIO bucket and sets anonymous download policy |
 | **keycloak-profile-init** | – | Bootstrap script: creates demo users and mappers |
+| **api** | 5000 | .NET 9 backend API |
+| **ui** | 4200 | Angular portal served by nginx |
 
 ### Test Users
 
@@ -98,7 +132,7 @@ The `docker-compose.yml` defines:
 
 ### Development Notes
 
-- **Keycloak Realm Import**: On every `docker compose down && up`, Keycloak rebuilds its in-memory H2 database from `keycloak-theme/clearvoice-realm.json`
+- **Keycloak Realm Import**: Keycloak imports `keycloak-theme/clearvoice-realm.json` on startup and uses PostgreSQL in the local stack.
 - **Bootstrap Script**: `docker/keycloak-profile-init.sh` idempotently ensures demo users and identity provider mappers
 - **Port Fallback**: API tries port 5000; if busy, falls back to 5001
 - **CORS**: Angular frontend configured to communicate with local API on port 5000/5001
