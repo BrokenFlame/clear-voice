@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, HttpEvent } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '../../environments/environment';
+import { environment } from '../../../environments/environment';
 
 // ── Response types (mirror ClearVoice.Api DTOs) ─────────────────────────────
 
@@ -126,9 +126,10 @@ export class ApiService {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  private toParams(obj: Record<string, unknown>): HttpParams {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private toParams(obj: any): HttpParams {
     let params = new HttpParams();
-    for (const [k, v] of Object.entries(obj)) {
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
       if (v !== undefined && v !== null && v !== '') {
         params = params.set(k, String(v));
       }

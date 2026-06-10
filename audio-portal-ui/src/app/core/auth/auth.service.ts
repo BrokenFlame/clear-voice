@@ -33,8 +33,8 @@ export class AuthService {
     this.oauthService.setupAutomaticSilentRefresh();
 
     try {
-      const hasValidToken = await this.oauthService.tryLoginCodeFlow();
-      if (hasValidToken || this.oauthService.hasValidAccessToken()) {
+      await this.oauthService.tryLoginCodeFlow();
+      if (this.oauthService.hasValidAccessToken()) {
         await this.loadUserProfile();
       }
     } catch (e) {
