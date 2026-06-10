@@ -17,6 +17,8 @@ spec:
       labels:
         {{- include "clearvoice.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: ui
+      annotations:
+        checksum/nginx-config: {{ include (print $.Template.BasePath "/ui-nginx-configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "clearvoice.fullname" . }}-ui
       securityContext:
@@ -42,3 +44,12 @@ spec:
             readOnlyRootFilesystem: false
             capabilities:
               drop: [ALL]
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: {{ include "clearvoice.fullname" . }}-nginx-config

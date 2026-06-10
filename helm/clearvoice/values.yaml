@@ -197,38 +197,10 @@ ui:
                     - ui
             topologyKey: kubernetes.io/hostname
 
-# ── Keycloak (OIDC Provider) ──────────────────────────────────────────────────
-# Can run in EKS or use AWS Cognito as alternative
-keycloak:
-  enabled: false        # Set true to deploy Keycloak in-cluster, or use AWS Cognito
-  
-  # If using AWS Cognito instead:
-  cognito:
-    enabled: true
-    userPoolId: eu-west-2_AbCdEfGhI
-    clientId: clearvoice-ui
-    domain: clearvoice.auth.eu-west-2.amazoncognito.com
-  
-  # If deploying Keycloak in-cluster:
-  image:
-    repository: keycloak/keycloak
-    tag: "24.0"
-  
-  replicaCount: 1  # Can scale to 2+ for HA
-  
-  # Connect to RDS PostgreSQL
-  database:
-    vendor: postgresql
-    host: clearvoice-prod.c9akciq32.eu-west-2.rds.amazonaws.com
-    port: 5432
-    name: keycloak_prod
-    username: keycloak    # Stored in secret
-    password: ""          # Stored in secret
-  
-  # Admin credentials (stored in secret)
-  admin:
-    username: admin
-    password: ""          # Stored in secret
+# ── Keycloak (External) ──────────────────────────────────────────────────────
+# Keycloak is an externally managed service — not deployed by this Helm chart.
+# Set the Keycloak authority URL in the API secret (keycloak-authority key) and
+# reference it in the UI environment variable NG_KEYCLOAK_URL.
 
 # ── AWS Application Load Balancer (ALB) Ingress ────────────────────────────────
 # Requires: AWS Load Balancer Controller installed in cluster
@@ -388,15 +360,35 @@ monitoring:
 security:
   # Pod Security Standards
   podSecurityPolicy: restricted
-  
+
   # RBAC
   rbac:
     create: true
-  
+
   # Network policies
   networkPolicy:
     enabled: true
-  
+
+  # ── CORS (API) ──────────────────────────────────────────────────────────────
+  # Origins the .NET API will accept cross-origin requests from.
+  # Injected as Cors__AllowedOrigins__0, Cors__AllowedOrigins__1 … env vars.
+  cors:
+    allowedOrigins:
+      - https://clearvoice.example.com
+
+  # ── Content-Security-Policy (UI / nginx) ────────────────────────────────────
+  # Full CSP header value rendered into the nginx ConfigMap.
+  # Adjust connect-src to match your API hostname and Keycloak hostname.
+  csp:
+    policy: >-
+      default-src 'self';
+      script-src 'self';
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data:;
+      connect-src 'self' https://api.clearvoice.example.com https://keycloak.example.com;
+      frame-ancestors 'none';
+
   # Secrets encryption at rest
   secrets:
     encryption: true

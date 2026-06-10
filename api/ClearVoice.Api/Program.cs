@@ -54,12 +54,15 @@ try
     builder.Services.AddSingleton(uploadOpts); // also available as plain instance
 
     // ── CORS ─────────────────────────────────────────────────────────────────
+    // Allowed methods are fixed to the set this API actually exposes.
+    // Allowed origins come from configuration (Helm injects them as
+    // Cors__AllowedOrigins__0, Cors__AllowedOrigins__1, …).
     builder.Services.AddCors(opt =>
         opt.AddDefaultPolicy(policy =>
             policy.SetIsOriginAllowed(origin =>
                     normalizedCorsOrigins.Contains(origin.TrimEnd('/'), StringComparer.OrdinalIgnoreCase))
                   .AllowAnyHeader()
-                  .AllowAnyMethod()
+                  .WithMethods("GET", "POST", "DELETE", "OPTIONS")
         )
     );
 

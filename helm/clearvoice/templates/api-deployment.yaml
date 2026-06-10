@@ -42,6 +42,11 @@ spec:
             - name: {{ $k }}
               value: {{ $v | quote }}
             {{- end }}
+            {{/* CORS — inject each allowed origin as Cors__AllowedOrigins__N */}}
+            {{- range $i, $origin := .Values.security.cors.allowedOrigins }}
+            - name: Cors__AllowedOrigins__{{ $i }}
+              value: {{ $origin | quote }}
+            {{- end }}
             {{- range $api.secretEnv }}
             - name: {{ .name }}
               valueFrom:

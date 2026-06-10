@@ -119,17 +119,34 @@ monitoring:
 # ── Security ──────────────────────────────────────────────────────────────────
 security:
   podSecurityPolicy: restricted
-  
+
   rbac:
     create: true
-  
+
   networkPolicy:
     enabled: true
-  
+
+  # CORS — origins the API will accept requests from.
+  # Replace with your actual production hostname(s).
+  cors:
+    allowedOrigins:
+      - https://clearvoice.example.com
+
+  # CSP — adjust connect-src to match your API and Keycloak hostnames.
+  csp:
+    policy: >-
+      default-src 'self';
+      script-src 'self';
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data:;
+      connect-src 'self' https://api.clearvoice.example.com https://keycloak.example.com;
+      frame-ancestors 'none';
+
   secrets:
     encryption: true
     kmsKeyId: "arn:aws:kms:eu-west-2:123456789012:key/12345678-1234-1234-1234-123456789012"
-  
+
   containerSecurityContext:
     allowPrivilegeEscalation: false
     readOnlyRootFilesystem: true
@@ -138,7 +155,7 @@ security:
     capabilities:
       drop:
         - ALL
-  
+
   podSecurityContext:
     fsGroup: 1000
     seccompProfile:
