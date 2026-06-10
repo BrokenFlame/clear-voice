@@ -4,8 +4,8 @@
 #  Services started by default:
 #    postgres  → PostgreSQL 16         localhost:5432
 #    keycloak  → Keycloak 24           localhost:8080
-#    minio     → S3-compatible store   localhost:9000  (API)
-#                MinIO console         localhost:9001
+#    minio     → S3-compatible store   localhost:9100  (API)
+#                MinIO console         localhost:9101
 #    minio-init→ one-shot bucket setup
 #
 #  Run the .NET API and Angular UI outside Docker for hot-reload:
@@ -64,13 +64,13 @@ services:
   minio:
     image: minio/minio:latest
     platform: linux/amd64
-    command: server /data --console-address ":9001"
+    command: server /data --console-address ":9101"
     environment:
       MINIO_ROOT_USER:     clearvoice
       MINIO_ROOT_PASSWORD: clearvoice_dev_secret
     ports:
-      - "9000:9000"   # S3 API  — used by the .NET API
-      - "9001:9001"   # Web console — http://localhost:9001
+      - "9100:9000"   # S3 API  — used by the .NET API
+      - "9101:9001"   # Web console — http://localhost:9101
     volumes:
       - minio_data:/data
     healthcheck:
@@ -120,7 +120,7 @@ services:
       Storage__S3__ServiceUrl:               http://minio:9000
       Storage__S3__ForcePathStyle:           "true"
       # Presigned URLs must point at localhost so the browser can reach them
-      Storage__S3__PresignedUrlHostOverride: http://localhost:9000
+      Storage__S3__PresignedUrlHostOverride: http://localhost:9100
       # MinIO credentials via AWS SDK env vars
       AWS_ACCESS_KEY_ID:     clearvoice
       AWS_SECRET_ACCESS_KEY: clearvoice_dev_secret

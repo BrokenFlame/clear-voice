@@ -90,8 +90,8 @@ What you get:
 |---------|-----|-------------|
 | PostgreSQL | localhost:5432 | clearvoice / clearvoice_dev |
 | Keycloak admin | http://localhost:8080 | admin / admin |
-| MinIO S3 API | http://localhost:9000 | clearvoice / clearvoice_dev_secret |
-| MinIO web console | http://localhost:9001 | clearvoice / clearvoice_dev_secret |
+| MinIO S3 API | http://localhost:9100 | clearvoice / clearvoice_dev_secret |
+| MinIO web console | http://localhost:9101 | clearvoice / clearvoice_dev_secret |
 
 The Keycloak `clearvoice` realm is auto-imported. A demo merchant user is pre-created:
 - **Username:** `demo.merchant` · **Password:** `merchant123!` · **Merchant ID:** `MCH-00142`
@@ -152,7 +152,7 @@ Open **http://localhost:4200** — the ClearVoice login screen appears.
 5. Check the upload landed in MinIO:
 
 ```bash
-# Via MinIO web console — http://localhost:9001
+# Via MinIO web console — http://localhost:9101
 # Browse to clearvoice-recordings bucket
 
 # Or via the mc CLI (install separately if needed):
@@ -614,8 +614,8 @@ helm upgrade --install fluent-bit fluent/fluent-bit \
 | .NET API | http://localhost:5000 | — |
 | Swagger | http://localhost:5000/swagger | — |
 | Keycloak admin | http://localhost:8080 | admin / admin |
-| MinIO S3 API | http://localhost:9000 | clearvoice / clearvoice_dev_secret |
-| MinIO console | http://localhost:9001 | clearvoice / clearvoice_dev_secret |
+| MinIO S3 API | http://localhost:9100 | clearvoice / clearvoice_dev_secret |
+| MinIO console | http://localhost:9101 | clearvoice / clearvoice_dev_secret |
 | PostgreSQL | localhost:5432 | clearvoice / clearvoice_dev |
 
 ### Common commands
