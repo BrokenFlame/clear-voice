@@ -17,7 +17,6 @@ export const authConfig: AuthConfig = {
   silentRefreshTimeout: 5000,
   timeoutFactor: 0.75,
   clearHashAfterLogin: true,
-  nonceStateSeparator: 'semicolon',
 
   // Store tokens in sessionStorage (cleared on tab close) — safer than localStorage
   // for a shared/public machine risk model.
