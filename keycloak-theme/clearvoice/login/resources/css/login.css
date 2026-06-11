@@ -3,6 +3,9 @@
 /* ── Reset & base ─────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Hide unstyled password-toggle buttons (icon font not loaded in custom theme) */
+button[data-password-toggle] { display: none; }
+
 body {
   font-family: 'DM Sans', sans-serif;
   background: #0c1628;

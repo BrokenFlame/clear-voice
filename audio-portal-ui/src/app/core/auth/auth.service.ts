@@ -1,6 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { OAuthService } from 'angular-oauth2-oidc';
+import { ApiService } from '../services/api.service';
 
 export interface ClearVoiceUser {
   sub: string;
@@ -19,6 +20,7 @@ export class AuthService {
 
   private oauthService = inject(OAuthService);
   private router = inject(Router);
+  private apiService = inject(ApiService);
 
   private _user = signal<ClearVoiceUser | null>(null);
 
@@ -39,6 +41,12 @@ export class AuthService {
       await this.oauthService.tryLoginCodeFlow();
       if (this.hasValidAccessToken()) {
         await this.loadUserProfile();
+        // Record login audit event
+        try {
+          await this.apiService.postLogin().toPromise();
+        } catch (e) {
+          console.warn('[AuthService] Failed to record login audit:', e);
+        }
       }
     } catch (e) {
       console.error('[AuthService] Login flow error:', e);
@@ -50,11 +58,25 @@ export class AuthService {
     await this.oauthService.tryLoginCodeFlow();
     if (!this.hasValidAccessToken()) return;
     await this.loadUserProfile();
-    if (this._user()) return;
+    if (this._user()) {
+      // Record login audit event after successful profile load
+      try {
+        await this.apiService.postLogin().toPromise();
+      } catch (e) {
+        console.warn('[AuthService] Failed to record login audit:', e);
+      }
+      return;
+    }
 
     const claims = this.getMergedClaims();
     if (Object.keys(claims).length > 0) {
       this.setUserFromClaims(claims);
+      // Record login audit event after user is set from claims
+      try {
+        await this.apiService.postLogin().toPromise();
+      } catch (e) {
+        console.warn('[AuthService] Failed to record login audit:', e);
+      }
     }
   }
 
@@ -70,7 +92,23 @@ export class AuthService {
     this.oauthService.initCodeFlow(undefined, { kc_idp_hint: 'azure' });
   }
 
+  /**
+   * Initiates a Keycloak Application Initiated Action (AIA) for password change.
+   * Keycloak presents and handles the password form entirely — the app never sees passwords.
+   * After completion or cancellation, Keycloak redirects back with a new auth code.
+   */
+  changePassword(): void {
+    this.oauthService.initCodeFlow(undefined, { kc_action: 'UPDATE_PASSWORD' });
+  }
+
   async logout(): Promise<void> {
+    // Record logout audit event before clearing the user
+    try {
+      await this.apiService.postLogout().toPromise();
+    } catch (e) {
+      console.warn('[AuthService] Failed to record logout audit:', e);
+    }
+
     this._user.set(null);
 
     // Best effort: call the provider logout endpoint when available.

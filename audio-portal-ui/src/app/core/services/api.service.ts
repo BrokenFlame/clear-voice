@@ -82,6 +82,10 @@ export class ApiService {
     return this.http.get<UserInfoResponse>(`${this.base}/api/me`);
   }
 
+  postLogin(): Observable<void> {
+    return this.http.post<void>(`${this.base}/api/auth/login`, {});
+  }
+
   postLogout(): Observable<void> {
     return this.http.post<void>(`${this.base}/api/auth/logout`, {});
   }

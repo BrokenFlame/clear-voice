@@ -2,7 +2,6 @@ import { Component, inject } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { AuthService } from '../../core/auth/auth.service';
-import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'cv-account',
@@ -92,7 +91,6 @@ import { runtimeConfig } from '../../core/config/runtime-config';
 export class AccountComponent {
   private auth = inject(AuthService);
 
-  // Ensure changePassword is available for template binding
   user = this.auth.user;
   isMerchant = this.auth.isMerchant;
   isFinanceStaff = this.auth.isFinanceStaff;
@@ -105,26 +103,11 @@ export class AccountComponent {
   }
 
   changePassword(): void {
-    try {
-      // Extract Keycloak base URL from issuer (e.g. http://localhost:8080/realms/clearvoice → http://localhost:8080)
-      const issuer = runtimeConfig.oidc?.issuer || 'http://localhost:8080/realms/clearvoice';
-      const baseUrl = issuer.split('/realms/')[0];
-      const passwordUrl = `${baseUrl}/realms/clearvoice/account/password`;
-      
-      // Validate URL looks correct before opening
-      if (!passwordUrl.startsWith('http')) {
-        console.error('[ChangePassword] Invalid password URL generated:', passwordUrl);
-        return;
-      }
-      
-      // Open in new tab to preserve the app state
-      window.open(passwordUrl, '_blank');
-    } catch (error) {
-      console.error('[ChangePassword] Failed to open password change workflow:', error);
-    }
+    this.auth.changePassword();
   }
 
   async logout(): Promise<void> {
     await this.auth.logout();
   }
 }
+

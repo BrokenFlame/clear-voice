@@ -40,6 +40,20 @@ public static class ApiEndpoints
         .WithName("GetMe")
         .WithTags("Auth");
 
+        grp.MapPost("/auth/login", async (HttpContext ctx, AuditService audit) =>
+        {
+            var u = ctx.User;
+            await audit.RecordAsync(
+                AuditEventTypes.Login,
+                u.UserId(), u.Username(),
+                merchantId: u.MerchantId(),
+                ipAddress: ctx.Connection.RemoteIpAddress?.ToString(),
+                userAgent: ctx.Request.Headers.UserAgent);
+            return Results.Ok();
+        })
+        .WithName("PostLogin")
+        .WithTags("Auth");
+
         grp.MapPost("/auth/logout", async (HttpContext ctx, AuditService audit) =>
         {
             var u = ctx.User;
