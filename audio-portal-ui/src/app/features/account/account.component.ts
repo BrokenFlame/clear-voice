@@ -105,13 +105,23 @@ export class AccountComponent {
   }
 
   changePassword(): void {
-    // Extract Keycloak base URL from issuer (e.g. http://localhost:8080/realms/clearvoice → http://localhost:8080)
-    const issuer = runtimeConfig.oidc.issuer || 'http://localhost:8080/realms/clearvoice';
-    const baseUrl = issuer.split('/realms/')[0];
-    const passwordUrl = `${baseUrl}/realms/clearvoice/account/password`;
-    
-    // Open in new tab to preserve the app state
-    window.open(passwordUrl, '_blank');
+    try {
+      // Extract Keycloak base URL from issuer (e.g. http://localhost:8080/realms/clearvoice → http://localhost:8080)
+      const issuer = runtimeConfig.oidc?.issuer || 'http://localhost:8080/realms/clearvoice';
+      const baseUrl = issuer.split('/realms/')[0];
+      const passwordUrl = `${baseUrl}/realms/clearvoice/account/password`;
+      
+      // Validate URL looks correct before opening
+      if (!passwordUrl.startsWith('http')) {
+        console.error('[ChangePassword] Invalid password URL generated:', passwordUrl);
+        return;
+      }
+      
+      // Open in new tab to preserve the app state
+      window.open(passwordUrl, '_blank');
+    } catch (error) {
+      console.error('[ChangePassword] Failed to open password change workflow:', error);
+    }
   }
 
   async logout(): Promise<void> {
