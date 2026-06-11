@@ -16,11 +16,15 @@ RUN npm run build -- --configuration=production
 # ── Stage 2: nginx ────────────────────────────────────────────────────────────
 FROM nginx:1.27-alpine AS runtime
 
+RUN apk add --no-cache gettext
 RUN addgroup -S clearvoice && adduser -S -G clearvoice clearvoice
 
 # SPA-friendly nginx config
 COPY ui/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist/audio-portal-ui/browser /usr/share/nginx/html
+COPY ui/env.template.js /usr/share/nginx/html/env.template.js
+COPY ui/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # Nginx needs to write to these dirs; chown so non-root can
 RUN chown -R clearvoice:clearvoice /usr/share/nginx/html \
@@ -29,4 +33,4 @@ RUN chown -R clearvoice:clearvoice /usr/share/nginx/html \
 USER clearvoice
 EXPOSE 8080
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["/docker-entrypoint.sh"]

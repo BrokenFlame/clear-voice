@@ -169,6 +169,12 @@ services:
       context: .
       dockerfile: ./ui/Dockerfile
     platform: linux/amd64
+    environment:
+      NG_API_URL: http://localhost:5000
+      NG_KEYCLOAK_URL: http://localhost:8080/realms/clearvoice
+      NG_CLIENT_ID: clearvoice-ui
+      NG_REQUIRE_HTTPS: "false"
+      NG_SHOW_DEBUG: "true"
     ports:
       - "4200:8080"
     depends_on:

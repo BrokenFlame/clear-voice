@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, HttpEvent } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 // ── Response types (mirror ClearVoice.Api DTOs) ─────────────────────────────
 
@@ -74,7 +74,7 @@ export interface AuditQuery {
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private http = inject(HttpClient);
-  private base = environment.apiBaseUrl;
+  private base = runtimeConfig.apiBaseUrl;
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 

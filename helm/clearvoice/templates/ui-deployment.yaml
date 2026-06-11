@@ -33,6 +33,13 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+          {{- if $ui.env }}
+          env:
+            {{- range $name, $value := $ui.env }}
+            - name: {{ $name }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- end }}
           livenessProbe:
             {{- toYaml $ui.livenessProbe | nindent 12 }}
           readinessProbe:

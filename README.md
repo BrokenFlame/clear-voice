@@ -6,462 +6,274 @@ A secure, cloud-native compliance recording portal for managing encrypted audio 
 
 ## Table of Contents
 
-- [Local Development](#local-development)
-- [Production Deployment](#production-deployment)
-- [Architecture](#architecture)
-- [Testing](#testing)
+- [Repository Layout](#repository-layout)
+- [Modes of Operation](#modes-of-operation)
+- [Local Demo – Full Docker Stack](#local-demo--full-docker-stack)
+- [Local Development – Hot-Reload](#local-development--hot-reload)
+- [Production – AWS EKS](#production--aws-eks)
+- [Test Users](#test-users)
+- [API Endpoints](#api-endpoints)
+- [Frontend Routes](#frontend-routes)
 
 ---
 
-## Local Development
+## Repository Layout
+
+```
+clear-voice/
+├── api/ClearVoice.Api/         # .NET 9 Minimal API
+├── audio-portal-ui/            # Angular 20 SPA
+├── ui/
+│   ├── Dockerfile              # Multi-stage build: ng build → nginx
+│   ├── nginx.conf              # SPA fallback + security headers
+│   ├── env.template.js         # Runtime config template (envsubst at startup)
+│   └── docker-entrypoint.sh   # Generates /tmp/env.js then starts nginx
+├── keycloak-theme/
+│   ├── clearvoice-realm.json   # Full realm export — imported on first boot
+│   └── clearvoice/login/       # Custom FTL theme + CSS
+├── docker/
+│   ├── keycloak-profile-init.sh
+│   └── minio-init.sh
+├── helm/clearvoice/            # Helm chart — EKS production deployment
+├── docker-compose.yml          # Local full-stack (all services in Docker)
+├── RUNBOOK.md                  # Step-by-step developer & ops runbook
+└── SECURITY_AUDIT_REPORT.md
+```
+
+---
+
+## Modes of Operation
+
+| Mode | How the UI runs | How the API runs | Use case |
+|------|-----------------|------------------|----------|
+| **Local demo** | nginx in Docker on :4200 | .NET in Docker on :5000 | Quick end-to-end demo, CI |
+| **Local dev** | `ng serve` on :4200 | `dotnet run` on :5000 | Day-to-day feature work with hot-reload |
+| **Production** | nginx pod (Helm) | .NET pod (Helm) on EKS | AWS EKS deployment |
+
+All three modes share the same Docker images and Keycloak OIDC flow. The UI reads runtime configuration from `/env.js` (generated at container startup from environment variables) so the same image works in every environment without rebuilding.
+
+---
+
+## Local Demo – Full Docker Stack
+
+> Everything runs in Docker. No local SDK install required.
 
 ### Prerequisites
 
-- **Docker Desktop** (with `docker compose` support)
-- **Node.js** 20+ and npm
-- **.NET 9 SDK**
-- **Angular CLI** (`npm install -g @angular/cli`)
+- Docker Desktop 4.x with `docker compose` support
 
-### Quick Start
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/BrokenFlame/clear-voice.git
-   cd clear-voice
-   ```
-
-2. **Start a complete local demo environment (all services in Docker)**
-  ```bash
-  docker compose up --build
-  ```
-  This builds and starts PostgreSQL, Keycloak, MinIO, the .NET API, and the Angular UI.
-
-  - **UI**: http://localhost:4200
-  - **API**: http://localhost:5000
-  - **Keycloak**: http://localhost:8080
-  - **MinIO**: http://localhost:9100
-
-3. **Access the application**
-  - Navigate to http://localhost:4200
-  - Log in using local credentials (see [Test Users](#test-users))
-
-### Infra-only Option (hot-reload outside Docker)
-
-If you want to run API/UI directly on your machine for hot reload:
+### Start the stack
 
 ```bash
-docker compose up postgres keycloak keycloak-profile-init minio minio-init
+docker compose up --build
 ```
 
-Then start app processes locally:
+This starts and wires together:
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| Angular UI | http://localhost:4200 | — |
+| .NET API | http://localhost:5000 | — |
+| Swagger | http://localhost:5000/swagger | — |
+| Keycloak admin | http://localhost:8080 | `admin` / `admin` |
+| MinIO S3 API | http://localhost:9100 | `clearvoice` / `clearvoice_dev_secret` |
+| MinIO console | http://localhost:9101 | `clearvoice` / `clearvoice_dev_secret` |
+| PostgreSQL | localhost:5432 | `clearvoice` / `clearvoice_dev` |
+
+On first boot:
+- Keycloak imports `keycloak-theme/clearvoice-realm.json` and creates the `clearvoice` realm.
+- `keycloak-profile-init` adds the required user profile attributes (`merchant_id`, `organisation_name`) and demo users.
+- `minio-init` creates the `clearvoice-recordings` bucket.
+
+Both init containers should reach `Exited (0)`. If `keycloak-profile-init` fails:
 
 ```bash
-cd api/ClearVoice.Api && dotnet run
-cd audio-portal-ui && npm install && ng serve --port 4200
+docker compose logs keycloak-profile-init --tail=50
+docker compose up keycloak-profile-init   # re-run
 ```
 
-### Legacy step-by-step (local app processes)
+### Stop / reset
 
-1. **Start the backend services** (Keycloak, PostgreSQL, MinIO)
-   ```bash
-   docker compose up -d
-   ```
-   - **Keycloak** (OIDC): http://localhost:8080
-   - **PostgreSQL**: localhost:5432
-   - **MinIO** (S3-compatible): http://localhost:9100
+```bash
+docker compose down          # stop, keep data volumes
+docker compose down -v       # stop and wipe all data (clean slate)
+```
 
-3. **Start the .NET API** (from `api/ClearVoice.Api/`)
-   ```bash
-   cd api/ClearVoice.Api
-   dotnet run
-   ```
-   - Runs on http://localhost:5000 (or 5001 if 5000 is in use)
-   - Environment: Development (reads `appsettings.Development.json`)
+### UI runtime configuration
 
-4. **Start the Angular frontend** (from `audio-portal-ui/`)
-   ```bash
-   cd audio-portal-ui
-   npm install
-   ng serve --port 4200
-   ```
-   - Runs on http://localhost:4200
+When running in Docker, the UI receives its config through environment variables in `docker-compose.yml`:
 
-4. **Access the application**
-  - Navigate to http://localhost:4200
-  - Log in using local credentials (see [Test Users](#test-users))
+```yaml
+NG_API_URL:       http://localhost:5000
+NG_KEYCLOAK_URL:  http://localhost:8080/realms/clearvoice
+NG_CLIENT_ID:     clearvoice-ui
+NG_REQUIRE_HTTPS: "false"
+NG_SHOW_DEBUG:    "true"
+```
 
-### Docker Compose Services
+These are injected at container startup into `/tmp/env.js`, which is loaded by `index.html` before the Angular app bootstraps. To change a value, update `docker-compose.yml` and restart the UI container:
 
-The `docker-compose.yml` defines:
-
-| Service | Port | Purpose |
-|---------|------|---------|
-| **keycloak** | 8080 | OIDC provider; imports realm from `keycloak-theme/clearvoice-realm.json` |
-| **postgres** | 5432 | Database for Keycloak and API metadata |
-| **minio** | 9100 (API), 9101 (Console) | S3-compatible object storage for audio files |
-| **minio-init** | – | Initializes MinIO bucket and sets anonymous download policy |
-| **keycloak-profile-init** | – | Bootstrap script: creates demo users and mappers |
-| **api** | 5000 | .NET 9 backend API |
-| **ui** | 4200 | Angular portal served by nginx |
-
-### Test Users
-
-**Merchant Users** (upload & manage own files):
-- `demo.merchant` / `merchant123!` (MCH-00142)
-- `demo2.merchant` / `merchant123!` (MCH-00142 – same merchant, shared file view)
-- `demo1.merchant` / `merchant123!` (MCH-00143 – isolated merchant)
-
-**Finance Staff** (view & audit all files):
-- `demo.finance` / `finance123!`
-
-### Key Endpoints
-
-**API**:
-- `GET /api/health` – Health check
-- `GET /api/merchant/files` – List files for logged-in merchant
-- `POST /api/merchant/files/upload` – Upload audio file
-- `GET /api/finance/files` – List all files (finance staff only)
-- `GET /api/finance/files/{id}/playback-url` – Generate presigned URL for streaming
-- `DELETE /api/finance/files/{id}` – Soft-delete file
-
-**Frontend Routes**:
-- `/merchant/files` – Merchant: My Files
-- `/merchant/upload` – Merchant: Upload
-- `/finance/files` – Finance: All Recordings
-- `/finance/audit` – Finance: Audit Log
-
-### Development Notes
-
-- **Keycloak Realm Import**: Keycloak imports `keycloak-theme/clearvoice-realm.json` on startup and uses PostgreSQL in the local stack.
-- **Bootstrap Script**: `docker/keycloak-profile-init.sh` idempotently ensures demo users and identity provider mappers
-- **Port Fallback**: API tries port 5000; if busy, falls back to 5001
-- **CORS**: Angular frontend configured to communicate with local API on port 5000/5001
+```bash
+docker compose up -d --build ui
+```
 
 ---
 
-## Production Deployment
+## Local Development – Hot-Reload
 
-### Architecture
-
-```
-┌─────────────────────────────────────────────────┐
-│         AWS EKS Cluster                         │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ┌──────────────────┐     ┌──────────────────┐ │
-│  │  Angular App     │     │  .NET API        │ │
-│  │  (Pod)           │────▶│  (Pod)           │ │
-│  │  Port: 4200      │     │  Port: 5000      │ │
-│  └──────────────────┘     └──────────────────┘ │
-│           │                        │            │
-│           └────────────┬───────────┘            │
-│                        │                        │
-└────────────────────────┼────────────────────────┘
-                         │
-        ┌────────────────┼────────────────┐
-        │                │                │
-        ▼                ▼                ▼
-   ┌─────────┐    ┌──────────┐    ┌──────────┐
-   │ AWS RDS │    │ AWS S3   │    │ Keycloak │
-   │PostgreSQL  │    │Bucket   │    │(EKS Pod) │
-   └─────────┘    └──────────┘    └──────────┘
-```
+> Backend services in Docker; API and UI run on your machine for instant feedback.
 
 ### Prerequisites
 
-- **AWS Account** with:
-  - **EKS Cluster** (Kubernetes 1.25+)
-  - **RDS PostgreSQL** instance
-  - **S3 Bucket** for audio storage
-  - **IAM Roles** for EKS pods (S3 access, RDS security group)
-  - **kubectl** configured to access the cluster
-- **Helm 3+**
-- **External Secrets Operator** installed in the cluster
+| Tool | Minimum version | Install |
+|------|----------------|---------|
+| .NET SDK | 9.0 | https://dot.net |
+| Node.js | 22.x | https://nodejs.org |
+| Angular CLI | 20.x | `npm i -g @angular/cli@20` |
+| Docker Desktop | 4.x | https://docker.com |
 
-### External Secrets (AWS Secrets Manager)
-
-Production secret flow:
-
-1. Store application secrets in **AWS Secrets Manager**.
-2. External Secrets Operator syncs those values into a standard Kubernetes Secret (`clearvoice-secrets`).
-3. The .NET API consumes that Kubernetes Secret using existing `secretKeyRef` mappings.
-
-Frontend note:
-
-- The Angular UI should only use public runtime values (API URL, Keycloak realm URL, public client ID).
-- Do not store browser-visible configuration in Secrets Manager as "secrets".
-
-### Deploy with Helm
-
-1. **Configure External Secrets in production values** (`helm/clearvoice/values-prod.yaml`):
-   ```yaml
-   externalSecrets:
-     enabled: true
-     targetSecretName: clearvoice-secrets
-     secretStoreRef:
-       kind: ClusterSecretStore
-       name: aws-secretsmanager
-     data:
-       - secretKey: postgres-connection-string
-         remoteRef:
-           key: /clearvoice/prod/postgres
-           property: connectionString
-       - secretKey: keycloak-authority
-         remoteRef:
-           key: /clearvoice/prod/keycloak
-           property: authority
-       - secretKey: keycloak-client-id
-         remoteRef:
-           key: /clearvoice/prod/keycloak
-           property: clientId
-       - secretKey: keycloak-audience
-         remoteRef:
-           key: /clearvoice/prod/keycloak
-           property: audience
-       - secretKey: s3-bucket-name
-         remoteRef:
-           key: /clearvoice/prod/s3
-           property: bucketName
-       - secretKey: s3-region
-         remoteRef:
-           key: /clearvoice/prod/s3
-           property: region
-   ```
-
-2. **Install the Helm chart**:
-   ```bash
-   helm install clearvoice ./helm/clearvoice \
-     --namespace clearvoice \
-     --create-namespace \
-     -f helm/clearvoice/values-prod.yaml
-   ```
-
-3. **Verify deployment**:
-   ```bash
-   kubectl get pods -n clearvoice
-   kubectl get ingress -n clearvoice
-   ```
-
-4. **Check logs**:
-   ```bash
-   kubectl logs -n clearvoice -l app=api -f
-   kubectl logs -n clearvoice -l app=ui -f
-   ```
-
-### Helm Chart Structure
-
-```
-helm/clearvoice/
-├── Chart.yaml                    # Chart metadata
-├── values.yaml                   # Default values
-├── values-prod.yaml              # Production overrides
-└── templates/
-    ├── api-deployment.yaml       # .NET API deployment
-    ├── ui-deployment.yaml        # Angular UI deployment
-  ├── external-secret.yaml      # ExternalSecret for AWS Secrets Manager sync
-    ├── services.yaml             # Service definitions
-    ├── ingress.yaml              # Ingress for UI & API
-    ├── configmap.yaml            # Application config
-  ├── secret.yaml               # Static K8s Secret fallback (non-ExternalSecrets mode)
-    ├── hpa.yaml                  # Horizontal Pod Autoscaler
-    ├── pdb.yaml                  # Pod Disruption Budget
-    └── _helpers.tpl              # Helper templates
-```
-
-### Configuration
-
-#### Environment Variables (Helm ConfigMap)
-
-**API (`api-deployment.yaml`)**:
-```yaml
-ASPNETCORE_ENVIRONMENT: Production
-ConnectionStrings__DefaultConnection: "Host=<RDS_ENDPOINT>;Port=5432;Database=clearvoice;Username=postgres;Password=<PASSWORD>"
-Storage__Provider: S3
-Storage__S3__Bucket: my-clearvoice-bucket
-Storage__S3__Region: us-east-1
-Auth__Authority: https://keycloak.example.com/realms/clearvoice
-```
-
-**UI (`ui-deployment.yaml`)**:
-```yaml
-NG_API_URL: https://api.example.com
-NG_AUTH_URL: https://keycloak.example.com/realms/clearvoice
-NG_CLIENT_ID: clearvoice-ui
-```
-
-#### Secrets (External Secrets -> Kubernetes Secret)
-
-- Store backend secrets in AWS Secrets Manager.
-- External Secrets Operator syncs values into `clearvoice-secrets`.
-- API pods read values through `api.secretEnv` using standard `secretKeyRef`.
-- UI configuration remains public and is delivered via environment/config maps.
-
-### Scaling & High Availability
-
-**Horizontal Pod Autoscaler (HPA)**:
-```yaml
-# Defined in helm/clearvoice/templates/hpa.yaml
-# Scales API pods based on CPU/memory utilization
-minReplicas: 2
-maxReplicas: 10
-targetCPUUtilizationPercentage: 70
-```
-
-**Pod Disruption Budget (PDB)**:
-```yaml
-# Ensures at least 1 pod remains during node drains
-minAvailable: 1
-```
-
-**Database**:
-- **RDS Multi-AZ**: Automatic failover
-- **Backups**: Daily snapshots to S3
-
-**Storage**:
-- **S3 Versioning**: Enabled for audit compliance
-- **Lifecycle**: Archive old files to Glacier after 90 days
-
-### Monitoring & Logging
-
-- **CloudWatch**: Application logs, RDS metrics
-- **EKS Logging**: Control plane logs to CloudWatch
-- **Prometheus** (optional): Pod metrics via Helm addon
-- **ELK Stack** (optional): Centralized logging
-
-### Updating the Deployment
+### 1 – Start backing services only
 
 ```bash
-# Update Helm chart values
-helm upgrade clearvoice ./helm/clearvoice \
-  --namespace clearvoice \
-  -f helm/clearvoice/values-prod.yaml
-
-# Rollback if needed
-helm rollback clearvoice 1 --namespace clearvoice
+docker compose up -d postgres keycloak keycloak-profile-init minio minio-init
 ```
 
----
+Wait until `keycloak-profile-init` and `minio-init` reach `Exited (0)`:
 
-## Architecture
-
-### Local Stack
-- **Keycloak** (in-memory H2) → **PostgreSQL** → **MinIO** (S3-compatible)
-- **.NET API** communicates with all three
-- **Angular UI** → **.NET API** → **Keycloak** (OIDC)
-
-### Production Stack
-- **Keycloak** (managed service or EKS pod) → **AWS RDS PostgreSQL**
-- **.NET API** (EKS) → **AWS S3** (via IAM role)
-- **Angular UI** (EKS/CloudFront) → **.NET API** (API Gateway or ALB)
-- All communication encrypted in transit (TLS 1.3)
-
----
-
-## Testing
-
-### Local Testing
-
-**Unit Tests**:
 ```bash
-# API (.NET)
+docker compose ps
+```
+
+### 2 – Run the .NET API
+
+```bash
 cd api/ClearVoice.Api
-dotnet test
+dotnet run
+# or with hot-reload:
+dotnet watch
+```
 
-# UI (Angular)
+Runs on **http://localhost:5000**. On first run, EF Core creates the database schema automatically (development mode only).
+
+### 3 – Run the Angular UI
+
+```bash
 cd audio-portal-ui
-npm test
+npm install       # first time only
+ng serve --port 4200
 ```
 
-**Integration Tests**:
+Open **http://localhost:4200**.
+
+The dev server uses `environment.ts` which points at `http://localhost:5000` and `http://localhost:8080`. No environment variables or `env.js` are needed in this mode — Angular's file replacement handles it at build time.
+
+### 4 – Reset data
+
 ```bash
-# Run full stack with test data
-docker compose -f docker-compose.test.yml up
-```
-
-**Manual Testing**:
-1. Log in as `demo.merchant` → Upload file → Verify in file list
-2. Log in as `demo2.merchant` → See shared files from demo.merchant
-3. Log in as `demo.finance` → See all files across merchants
-4. Verify file isolation: demo1.merchant (MCH-00143) should NOT see demo.merchant files (MCH-00142)
-
-### Production Testing
-
-**Smoke Test**:
-```bash
-kubectl run smoketest --image=curlimages/curl:8.8.0 -i --rm --restart=Never -- \
-  curl -v https://api.example.com/health
-```
-
-**Load Test**:
-```bash
-# Using Apache Bench
-ab -n 1000 -c 50 https://clearvoice.example.com/
+docker compose down -v      # wipe Postgres, Keycloak, and MinIO volumes
+docker compose up -d postgres keycloak keycloak-profile-init minio minio-init
 ```
 
 ---
 
-## Troubleshooting
+## Production – AWS EKS
 
-### Local
+> The Helm chart deploys the API and UI as Kubernetes workloads on EKS. PostgreSQL uses AWS RDS, object storage uses AWS S3, and secrets are managed via AWS Secrets Manager + External Secrets Operator.
 
-**Port already in use**:
+See **[RUNBOOK.md](RUNBOOK.md)** for the full step-by-step production runbook including:
+
+- EKS cluster setup
+- ECR image build and push
+- IRSA (IAM Roles for Service Accounts) for S3
+- Keycloak deployment on EKS
+- Helm deploy / upgrade / rollback
+- Database migration jobs
+- Logging and observability (CloudWatch / Fluent Bit)
+
+### Quick deploy summary
+
 ```bash
-# API falls back to 5001; check with:
-lsof -i :5000
-# Or update docker-compose.yml port mapping
+# 1. Build and push images to ECR
+docker build --platform linux/amd64 -t $ECR_BASE/clearvoice/api:1.0.0 ./api
+docker build --platform linux/amd64 -t $ECR_BASE/clearvoice/ui:1.0.0  -f ui/Dockerfile .
+docker push $ECR_BASE/clearvoice/api:1.0.0
+docker push $ECR_BASE/clearvoice/ui:1.0.0
+
+# 2. Deploy with Helm
+helm upgrade --install clearvoice ./helm/clearvoice \
+  --namespace clearvoice \
+  --create-namespace \
+  -f helm/clearvoice/values-prod.yaml \
+  --set global.imageRegistry=$ECR_BASE \
+  --set api.image.tag=1.0.0 \
+  --set ui.image.tag=1.0.0 \
+  --wait
 ```
 
-**Keycloak not ready**:
-```bash
-docker compose logs keycloak | tail -20
-docker compose ps keycloak
+See **[helm/clearvoice/README.md](helm/clearvoice/README.md)** for full Helm chart documentation including all configurable values.
+
+### Production UI runtime configuration
+
+In production the UI pod receives its config through Helm `values-prod.yaml`:
+
+```yaml
+ui:
+  env:
+    NG_API_URL:      https://api.clearvoice.example.com
+    NG_KEYCLOAK_URL: https://keycloak.example.com/realms/clearvoice
+    NG_CLIENT_ID:    clearvoice-ui
 ```
 
-**Files not uploading**:
-```bash
-# Check MinIO console: http://localhost:9101
-# Verify bucket exists and has anonymous policy
-docker compose logs minio-init
-```
-
-### Production
-
-**Pods not starting**:
-```bash
-kubectl describe pod <pod-name> -n clearvoice
-kubectl logs <pod-name> -n clearvoice
-```
-
-**Database connection issues**:
-```bash
-# Test RDS connectivity from pod
-kubectl exec -it <pod-name> -n clearvoice -- \
-  psql -h <rds-endpoint> -U postgres -d clearvoice
-```
-
-**S3 access denied**:
-```bash
-# Verify IAM role attached to EKS node
-aws iam list-attached-role-policies --role-name <node-role>
-```
+These values are passed into the container as environment variables and written to `/tmp/env.js` at pod startup. To change them, update your values file and run `helm upgrade`.
 
 ---
 
-## Documentation
+## Test Users
 
-- [Security & Compliance](docs/SECURITY.md)
-- [API Reference](docs/API.md)
-- [Database Schema](docs/SCHEMA.md)
-- [Keycloak Configuration](docs/KEYCLOAK.md)
+**Merchant users** — can upload and manage their own files:
+
+| Username | Password | Merchant ID |
+|----------|----------|-------------|
+| `demo.merchant` | `merchant123!` | MCH-00142 |
+| `demo2.merchant` | `merchant123!` | MCH-00142 |
+| `demo1.merchant` | `merchant123!` | MCH-00143 |
+
+**Finance staff** — can view all files and the audit log:
+
+| Username | Password |
+|----------|----------|
+| `demo.finance` | `finance123!` |
+
+These users are created by `docker/keycloak-profile-init.sh` on first boot. Finance staff use local Keycloak credentials; in production, auditors authenticate via Azure Entra ID through the Keycloak Azure broker.
 
 ---
 
-## License
+## API Endpoints
 
-Proprietary – Pinnacle Auto Finance Ltd
+| Method | Path | Role | Description |
+|--------|------|------|-------------|
+| `GET` | `/health` | Public | Liveness / readiness probe |
+| `GET` | `/api/me` | Any authenticated | Current user info + roles |
+| `GET` | `/api/merchant/files` | `merchant_employee` | List own files |
+| `POST` | `/api/merchant/files/upload` | `merchant_employee` | Upload audio file |
+| `GET` | `/api/finance/files` | `finance_staff` | List all files |
+| `GET` | `/api/finance/files/{id}/playback-url` | `finance_staff` | Presigned S3 URL for streaming |
+| `DELETE` | `/api/finance/files/{id}` | `finance_staff` | Delete file |
+| `GET` | `/api/finance/audit` | `finance_staff` | Audit log |
+
+Swagger UI (development): http://localhost:5000/swagger
 
 ---
 
-## Support
+## Frontend Routes
 
-For issues, contact: `dev@clearvoice.example.com`
+| Path | Role | Description |
+|------|------|-------------|
+| `/` | Public | Login page |
+| `/auth/callback` | Public | OIDC callback handler |
+| `/merchant/files` | `merchant_employee` | My files |
+| `/merchant/upload` | `merchant_employee` | Upload audio |
+| `/merchant/account` | `merchant_employee` | Account details |
+| `/finance/files` | `finance_staff` | All recordings |
+| `/finance/audit` | `finance_staff` | Audit log |
+| `/finance/account` | `finance_staff` | Account details |

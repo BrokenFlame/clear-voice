@@ -1,13 +1,13 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { AuthService } from '../auth/auth.service';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const auth = inject(AuthService);
 
   // Only attach token to API calls — never to third-party requests
-  if (!req.url.startsWith(environment.apiBaseUrl)) {
+  if (!req.url.startsWith(runtimeConfig.apiBaseUrl)) {
     return next(req);
   }
 

@@ -50,7 +50,51 @@ clearvoice/
 
 No AWS account needed. MinIO provides a fully S3-compatible store running in Docker.
 
-### Prerequisites
+There are two modes — choose the one that suits your task:
+
+| Mode | When to use |
+|------|-------------|
+| **Local demo** (all-in-Docker) | Quick smoke test; no SDK install needed |
+| **Local dev** (hot-reload) | Feature work; instant recompile on save |
+
+---
+
+### Local demo — full stack in Docker
+
+No SDK installation required.
+
+```bash
+cd clear-voice
+docker compose up --build
+```
+
+This starts all services and serves the Angular UI on **http://localhost:4200**.
+
+To rebuild only the UI after a code change:
+
+```bash
+docker compose up -d --build ui
+```
+
+#### UI runtime configuration (Docker)
+
+The Dockerised UI is a production Angular build. At container startup `docker-entrypoint.sh` runs `envsubst` on `ui/env.template.js` and writes `/tmp/env.js`, which `index.html` loads before Angular bootstraps. The values come from `docker-compose.yml`:
+
+```yaml
+NG_API_URL:       http://localhost:5000
+NG_KEYCLOAK_URL:  http://localhost:8080/realms/clearvoice
+NG_CLIENT_ID:     clearvoice-ui
+NG_REQUIRE_HTTPS: "false"
+NG_SHOW_DEBUG:    "true"
+```
+
+Change any of these in `docker-compose.yml`, then `docker compose up -d --build ui`.
+
+---
+
+### Local dev — hot-reload
+
+#### Prerequisites
 
 ```bash
 # Install .NET 9 SDK — download from https://dot.net
@@ -68,13 +112,13 @@ npm install -g @angular/cli@20
 # (make sure it's running before continuing)
 ```
 
-### Step 1 — Start the backing services
+#### Step 1 — Start backing services only
 
-This starts PostgreSQL, Keycloak, MinIO, and a one-shot bucket-init container:
+This starts PostgreSQL, Keycloak, MinIO, and the one-shot init containers:
 
 ```bash
-cd clearvoice
-docker compose up -d
+cd clear-voice
+docker compose up -d postgres keycloak keycloak-profile-init minio minio-init
 ```
 
 Watch the startup (takes about 30–45 s for Keycloak):
@@ -93,48 +137,30 @@ What you get:
 | MinIO S3 API | http://localhost:9100 | clearvoice / clearvoice_dev_secret |
 | MinIO web console | http://localhost:9101 | clearvoice / clearvoice_dev_secret |
 
-The Keycloak `clearvoice` realm is auto-imported. A demo merchant user is pre-created:
-- **Username:** `demo.merchant` · **Password:** `merchant123!` · **Merchant ID:** `MCH-00142`
-
-After Keycloak is healthy, a one-shot `keycloak-profile-init` container runs and configures realm User Profile attributes required by this project (`merchant_id`, `organisation_name`).
+The Keycloak `clearvoice` realm is auto-imported. Demo users are pre-created by `keycloak-profile-init`.
 
 Expected one-shot service states:
-- `minio-init` -> `Exited (0)`
-- `keycloak-profile-init` -> `Exited (0)`
+- `minio-init` → `Exited (0)`
+- `keycloak-profile-init` → `Exited (0)`
 
 If `keycloak-profile-init` fails:
 
 ```bash
 docker compose logs keycloak-profile-init --tail=200
-docker compose up -d keycloak-profile-init
+docker compose up keycloak-profile-init
 ```
 
-### Step 2 — Load the MinIO credentials into your shell
-
-The AWS SDK in the .NET API reads standard `AWS_*` env vars. For local dev these point at MinIO, not real AWS:
+#### Step 2 — Run the .NET API
 
 ```bash
-cd clearvoice
-source .env
-```
-
-Or add to your `~/.zshrc` for persistence (only do this for a dev machine):
-
-```bash
-export AWS_ACCESS_KEY_ID=clearvoice
-export AWS_SECRET_ACCESS_KEY=clearvoice_dev_secret
-export AWS_DEFAULT_REGION=us-east-1
-```
-
-### Step 3 — Run the .NET API
-
-```bash
-cd clearvoice/api/ClearVoice.Api
+cd clear-voice/api/ClearVoice.Api
 dotnet restore
 dotnet run
+# or with hot-reload:
+dotnet watch
 ```
 
-The API starts on **http://localhost:5000**. On first run it automatically applies EF Core migrations to create the `audio_files` and `audit_events` tables.
+The API starts on **http://localhost:5000**. On first run it automatically creates the database schema (Development mode only — production uses `dotnet ef migrations`).
 
 Swagger UI: http://localhost:5000/swagger
 
@@ -146,17 +172,19 @@ dotnet ef database update                   # apply pending migrations
 dotnet ef migrations add <MigrationName>    # create a new migration
 ```
 
-### Step 4 — Run the Angular UI
+#### Step 3 — Run the Angular UI
 
 ```bash
-cd clearvoice/audio-portal-ui
+cd clear-voice/audio-portal-ui
 npm install          # first time only
-ng serve
+ng serve --port 4200
 ```
 
-Open **http://localhost:4200** — the ClearVoice login screen appears.
+Open **http://localhost:4200**.
 
-### Step 5 — Log in and test the full flow
+In this mode Angular uses `src/environments/environment.ts` (file-replaced at build time), which points at `http://localhost:5000` and `http://localhost:8080`. No `env.js` or container env vars are needed.
+
+#### Step 5 — Log in and test the full flow
 
 1. Click **"Sign in with merchant credentials"**
 2. Log in as `demo.merchant` / `merchant123!`
@@ -236,11 +264,11 @@ docker build \
 ### Test the containerised stack locally
 
 ```bash
-cd clearvoice
-docker compose --profile full up
+cd clear-voice
+docker compose up --build
 ```
 
-This starts: postgres → keycloak → api → ui (nginx on port 4200).
+This starts: postgres → keycloak → keycloak-profile-init → minio → minio-init → api → ui (nginx on port 4200).
 
 ### Push images to ECR
 
@@ -634,11 +662,11 @@ helm upgrade --install fluent-bit fluent/fluent-bit \
 ### Common commands
 
 ```bash
-# Start backing services (Postgres + Keycloak + MinIO)
-docker compose up -d
+# Start backing services only (Postgres + Keycloak + MinIO)
+docker compose up -d postgres keycloak keycloak-profile-init minio minio-init
 
-# Start full containerised stack (adds API + UI containers)
-docker compose --profile full up
+# Start full containerised stack (all services including API + UI)
+docker compose up --build
 
 # Stop all services (keep data volumes)
 docker compose down

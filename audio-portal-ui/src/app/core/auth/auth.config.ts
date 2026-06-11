@@ -1,16 +1,16 @@
 import { AuthConfig } from 'angular-oauth2-oidc';
-import { environment } from '../../../environments/environment';
+import { runtimeConfig } from '../config/runtime-config';
 
 export const authConfig: AuthConfig = {
-  issuer: environment.oidc.issuer,
-  clientId: environment.oidc.clientId,
-  redirectUri: environment.oidc.redirectUri,
-  postLogoutRedirectUri: environment.oidc.postLogoutRedirectUri,
-  scope: environment.oidc.scope,
-  responseType: environment.oidc.responseType,
-  requireHttps: environment.oidc.requireHttps,
-  showDebugInformation: environment.oidc.showDebugInformation,
-  sessionChecksEnabled: environment.oidc.sessionChecksEnabled,
+  issuer: runtimeConfig.oidc.issuer,
+  clientId: runtimeConfig.oidc.clientId,
+  redirectUri: runtimeConfig.oidc.redirectUri,
+  postLogoutRedirectUri: runtimeConfig.oidc.postLogoutRedirectUri,
+  scope: runtimeConfig.oidc.scope,
+  responseType: runtimeConfig.oidc.responseType,
+  requireHttps: runtimeConfig.oidc.requireHttps,
+  showDebugInformation: runtimeConfig.oidc.showDebugInformation,
+  sessionChecksEnabled: runtimeConfig.oidc.sessionChecksEnabled,
 
   // PKCE — S256 is required; Keycloak enforces this on the clearvoice-ui client
   useSilentRefresh: false,
