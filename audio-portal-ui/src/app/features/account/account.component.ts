@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { AuthService } from '../../core/auth/auth.service';
+import { runtimeConfig } from '../../core/config/runtime-config';
 
 @Component({
   selector: 'cv-account',
@@ -66,11 +67,13 @@ import { AuthService } from '../../core/auth/auth.service';
         </table>
       </div>
 
-      <!-- Sign out -->
-      <div style="max-width:540px;">
-        <button mat-stroked-button color="warn" (click)="logout()" style="font-size:13px;">
-          <mat-icon>logout</mat-icon>
-          Sign out of ClearVoice
+      <!-- Account actions -->
+      <div style="max-width:540px;display:flex;gap:12px;flex-wrap:wrap;">
+        <button mat-raised-button color="primary" (click)="changePassword()">
+          <mat-icon>lock</mat-icon>Change Password
+        </button>
+        <button mat-raised-button color="warn" (click)="logout()">
+          <mat-icon>logout</mat-icon>Sign Out
         </button>
       </div>
     }
@@ -89,6 +92,7 @@ import { AuthService } from '../../core/auth/auth.service';
 export class AccountComponent {
   private auth = inject(AuthService);
 
+  // Ensure changePassword is available for template binding
   user = this.auth.user;
   isMerchant = this.auth.isMerchant;
   isFinanceStaff = this.auth.isFinanceStaff;
@@ -98,6 +102,16 @@ export class AccountComponent {
     if (!u) return '?';
     const name = u.fullName ?? u.username ?? '';
     return name.split(/[\s._-]/).map(p => p[0]).join('').toUpperCase().slice(0, 2);
+  }
+
+  changePassword(): void {
+    // Extract Keycloak base URL from issuer (e.g. http://localhost:8080/realms/clearvoice → http://localhost:8080)
+    const issuer = runtimeConfig.oidc.issuer || 'http://localhost:8080/realms/clearvoice';
+    const baseUrl = issuer.split('/realms/')[0];
+    const passwordUrl = `${baseUrl}/realms/clearvoice/account/password`;
+    
+    // Open in new tab to preserve the app state
+    window.open(passwordUrl, '_blank');
   }
 
   async logout(): Promise<void> {
